@@ -16,10 +16,9 @@
  * On encode nous-mêmes le PNG (zlib fait le gros du travail) et le ICO, plutôt
  * que d'ajouter sharp ou canvas au projet pour quatre fichiers.
  *
- * ATTENTION : icon.png et icon.ico ne viennent plus d'ici. Ils sont dérivés de
- * l'image source dans assets/ (voir assets/README.md). Relancer ce script les
- * écraserait par le tracé procédural. Seules les icônes de la zone de
- * notification et mark.svg sont encore à jour.
+ * Les couleurs viennent de la palette de l'application : Coconut White
+ * #F2F1EA, Obsidian Ink #151311, Velvet Curfew #4B262F. La pastille dégrade
+ * de l'obsidienne au velours, la plume est en coco.
  */
 
 const fs = require('fs');
@@ -337,20 +336,22 @@ function drawFeather(canvas, box, size, color, pad = 0) {
 
 /* ---------------------------- les icônes ----------------------------- */
 
-/** Icône applicative : plume blanche sur pastille dégradée. */
+/** Icône applicative : plume coco sur pastille obsidienne virant au velours. */
 function drawAppIcon(size) {
   const S = size * SS;
   const canvas = createCanvas(S);
 
+  // Diagonale obsidienne -> velours : deux tons proches, mais le dégradé
+  // suffit à éviter l'aplat, et la plume claire porte tout le contraste.
   roundedRect(canvas, 0, 0, S, S, S * 0.22, (x, y) => {
     const t = (x / S) * 0.45 + (y / S) * 0.55;
-    return [lerp(99, 168, t), lerp(102, 85, t), lerp(241, 247, t)];
+    return [lerp(21, 75, t), lerp(19, 38, t), lerp(17, 47, t)];
   });
 
   // La pastille impose sa propre marge, en plus de celle du dessin
   // Moins la pastille est grande, moins elle peut s'offrir de marge interne
   const pad = size <= 24 ? 0.04 : size <= 48 ? 0.075 : 0.12;
-  drawFeather(canvas, S, size, [255, 255, 255], pad);
+  drawFeather(canvas, S, size, [242, 241, 234], pad);
   return downsample(canvas, size);
 }
 
@@ -369,7 +370,7 @@ function drawTrayIcon(size, tone = 'light') {
   const S = size * SS;
   const canvas = createCanvas(S);
   const color =
-    tone === 'active' ? [244, 63, 94] : tone === 'dark' ? [38, 38, 40] : [240, 240, 240];
+    tone === 'active' ? [176, 34, 58] : tone === 'dark' ? [21, 19, 17] : [242, 241, 234];
   drawFeather(canvas, S, size, color);
   return downsample(canvas, size);
 }
