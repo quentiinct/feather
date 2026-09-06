@@ -40,7 +40,7 @@ sinon le texte atterrirait dans VoxFlow au lieu de votre éditeur.
 Prérequis : **Windows 10/11 x64** et **Node.js 20+**.
 
 ```bash
-git clone https://github.com/QuentinCourtade/voxflow.git
+git clone https://github.com/quentiinct/voxflow.git
 cd voxflow
 npm install
 npm run setup     # télécharge whisper.cpp + le modèle par défaut

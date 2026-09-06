@@ -571,7 +571,7 @@ function registerIpcHandlers() {
     modelsDir: MODELS_DIR,
     binDir: BIN_DIR,
     models: MODELS,
-    repository: 'https://github.com/QuentinCourtade/voxflow'
+    repository: 'https://github.com/quentiinct/voxflow'
   }));
 
   ipcMain.handle('app:openPath', (_event, which) => {
