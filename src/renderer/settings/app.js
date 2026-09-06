@@ -21,7 +21,15 @@ let suppressWrites = false;
  * Utilitaires
  * ------------------------------------------------------------------ */
 
-const nf = new Intl.NumberFormat('fr-FR');
+const frFR = new Intl.NumberFormat('fr-FR');
+
+/**
+ * Intl sépare les milliers par une espace fine insécable (U+202F). Google Sans
+ * Flex la couvre dans sa plage Unicode mais n'en a pas le glyphe : le navigateur
+ * ne cherche donc pas ailleurs et « 1 249 » s'affiche « 1249 ». L'insécable
+ * ordinaire, elle, est dans la police.
+ */
+const nf = { format: (n) => frFR.format(n).replace(/\u202f/g, '\u00a0') };
 
 function compact(n) {
   if (n < 10000) return nf.format(n);
