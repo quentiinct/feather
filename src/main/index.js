@@ -123,6 +123,25 @@ ipcMain.on('rpc:response', (_event, payload) => {
 
 const PRELOAD = path.join(__dirname, '..', 'preload', 'bridge.js');
 
+let cachedAppIcon = null;
+
+/** Icône de fenêtre, donc de barre des tâches. Chargée une fois. */
+function appIcon() {
+  if (cachedAppIcon) return cachedAppIcon;
+  // Le .ico embarque toutes les tailles : Windows pioche celle qu'il lui faut
+  // selon la mise à l'échelle de l'écran, plutôt que de rééchantillonner.
+  for (const name of ['icon.ico', 'icon.png']) {
+    const file = path.join(ROOT, 'assets', name);
+    if (!fs.existsSync(file)) continue;
+    const image = nativeImage.createFromPath(file);
+    if (!image.isEmpty()) {
+      cachedAppIcon = image;
+      return cachedAppIcon;
+    }
+  }
+  return undefined;
+}
+
 function createCaptureWindow() {
   captureWindow = new BrowserWindow({
     width: 320,
@@ -221,6 +240,9 @@ function createSettingsWindow() {
     minHeight: 560,
     frame: false,
     show: false,
+    // Icône de la barre des tâches. En production l'exécutable porte déjà
+    // l'icône, mais la fenêtre doit la déclarer pour l'afficher en développement.
+    icon: appIcon(),
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1a1a19' : '#fcfcfb',
     webPreferences: {
       preload: PRELOAD,
@@ -677,6 +699,10 @@ if (!gotLock) {
   app.quit();
 } else {
   app.on('second-instance', () => createSettingsWindow());
+
+  // Sans identité déclarée, Windows regroupe la fenêtre sous « Electron » dans
+  // la barre des tâches et l'épinglage ne retient pas la bonne application.
+  app.setAppUserModelId('com.quentincourtade.feather');
 
   app.whenReady().then(async () => {
     config = new ConfigStore(app.getPath('userData'));

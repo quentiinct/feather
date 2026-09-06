@@ -225,8 +225,8 @@ const BARBS_TINY = [0.85, 1.0, 0.7];
  * l'échelle du dessin à neuf barbes donne une tache grise en dessous de 24 px.
  */
 function variantFor(size) {
-  if (size <= 24) return { barbs: BARBS_TINY, barbW: 0.13, shaftW: 0.1, margin: 0.02 };
-  if (size <= 48) return { barbs: BARBS_SMALL, barbW: 0.08, shaftW: 0.066, margin: 0.04 };
+  if (size <= 32) return { barbs: BARBS_TINY, barbW: 0.15, shaftW: 0.115, margin: 0.02 };
+  if (size <= 64) return { barbs: BARBS_SMALL, barbW: 0.085, shaftW: 0.07, margin: 0.035 };
   return { barbs: BARBS_FULL, barbW: 0.046, shaftW: 0.05, margin: 0.06 };
 }
 
@@ -343,7 +343,9 @@ function drawAppIcon(size) {
   });
 
   // La pastille impose sa propre marge, en plus de celle du dessin
-  drawFeather(canvas, S, size, [255, 255, 255], size <= 24 ? 0.05 : 0.12);
+  // Moins la pastille est grande, moins elle peut s'offrir de marge interne
+  const pad = size <= 24 ? 0.04 : size <= 48 ? 0.075 : 0.12;
+  drawFeather(canvas, S, size, [255, 255, 255], pad);
   return downsample(canvas, size);
 }
 
@@ -398,7 +400,9 @@ function featherSvg(box = 16, sizeHint = 64) {
 function main() {
   fs.mkdirSync(ASSETS, { recursive: true });
 
-  const sizes = [256, 128, 64, 48, 32, 16];
+  // Toutes les tailles que Windows demande réellement : sans correspondance
+  // exacte il réduit la plus proche, et le trait s'empâte.
+  const sizes = [256, 128, 64, 48, 40, 32, 24, 20, 16];
   const pngs = sizes.map((size) => ({ size, buffer: encodePng(drawAppIcon(size), size) }));
 
   fs.writeFileSync(path.join(ASSETS, 'icon.png'), pngs[0].buffer);
