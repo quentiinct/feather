@@ -77,7 +77,10 @@ function verify(exeName) {
     const out = execFileSync(path.join(BIN_DIR, exeName), ['--help'], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 15000
+      // Le binaire doit tourner depuis son dossier pour trouver ses DLL, et
+      // la première initialisation CUDA peut prendre une bonne dizaine de secondes.
+      cwd: BIN_DIR,
+      timeout: 60000
     });
     return out.length > 0;
   } catch (err) {

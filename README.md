@@ -16,8 +16,9 @@ et aucun octet d'audio ne quitte l'ordinateur.
   arrêter, appui maintenu pour un fonctionnement talkie-walkie. Le raccourci cohabite
   avec vos autres raccourcis : si vous enchaînez sur une troisième touche
   (`Ctrl + Maj + T`), VoxFlow annule sans rien écrire.
-- **Transcription locale.** whisper.cpp avec accélération CUDA quand une carte NVIDIA
-  est présente. Environ une seconde pour dix secondes de parole sur une RTX 3060.
+- **Transcription locale et rapide.** whisper.cpp avec accélération CUDA quand une carte
+  NVIDIA est présente. Le modèle reste chargé en mémoire vidéo entre deux dictées :
+  **~210 ms** pour huit secondes de parole sur une RTX 3060 (modèle `large-v3-turbo-q5`).
 - **Nettoyage du texte.** Whisper est fidèle, mais l'oral n'est pas de l'écrit. VoxFlow
   supprime les hésitations, les répétitions, ponctue et applique votre dictionnaire
   personnel. Trois modes, tous gratuits — voir plus bas.
@@ -128,6 +129,12 @@ Quelques choix qui méritent une explication :
   pas enregistrer une combinaison de modificateurs seuls. Dès que `Ctrl + Maj` est
   complet, la capture démarre en silence ; elle n'est confirmée qu'après 160 ms, le temps
   de voir si vous tapiez en fait un vrai raccourci.
+- **whisper.cpp tourne en serveur, pas en ligne de commande.** Un appel à `whisper-cli`
+  recharge le modèle à chaque fois — 2 s pour un `large-v3-turbo-q5`. VoxFlow garde
+  `whisper-server` vivant et lui envoie le WAV en HTTP local : 210 ms au lieu de 2 s.
+  Le modèle est même préchargé au démarrage de l'application, pour que la toute
+  première dictée soit déjà rapide. Si le serveur ne démarre pas, meurt, ou refuse une
+  requête, le chemin ligne de commande reprend la main — la dictée aboutit quand même.
 - **L'injection passe par un processus PowerShell persistant.** Compiler le code Win32
   coûte environ une seconde ; le faire à chaque dictée serait intenable. Le helper est
   lancé au démarrage et répond ensuite en 1 ms.

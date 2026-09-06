@@ -36,7 +36,9 @@ function humanDuration(seconds) {
   if (m < 60) return m + ' min';
   const h = Math.floor(m / 60);
   const rest = m % 60;
-  return rest ? h + ' h ' + rest + ' min' : h + ' h';
+  // « 2 h 40 » plutôt que « 2 h 40 min » : la tuile est étroite et la notation
+  // horaire française se passe très bien de l'unité finale.
+  return rest ? h + ' h ' + String(rest).padStart(2, '0') : h + ' h';
 }
 
 function formatDate(iso) {
@@ -83,9 +85,22 @@ function showPanel(name) {
   if (name === 'transcription') refreshEngine();
 }
 
+const PANELS = ['dashboard', 'hotkey', 'transcription', 'cleanup', 'output', 'audio', 'general'];
+
 $$('.nav-item').forEach((btn) => {
-  btn.addEventListener('click', () => showPanel(btn.dataset.panel));
+  btn.addEventListener('click', () => {
+    window.location.hash = btn.dataset.panel;
+    showPanel(btn.dataset.panel);
+  });
 });
+
+/** L'ancre permet de rouvrir la fenêtre sur la section où l'on était. */
+function panelFromHash() {
+  const name = window.location.hash.replace(/^#/, '');
+  return PANELS.includes(name) ? name : 'dashboard';
+}
+
+window.addEventListener('hashchange', () => showPanel(panelFromHash()));
 
 /** Groupes de boutons exclusifs (segmented control). */
 function bindSegmented(selector, onChange) {
@@ -914,6 +929,7 @@ async function boot() {
     '.';
 
   renderAll();
+  showPanel(panelFromHash());
   await refreshEngine();
   await refreshStats();
 }

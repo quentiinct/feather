@@ -57,7 +57,6 @@ let tray = null;
 
 /** 'idle' | 'armed' | 'recording' | 'processing' */
 let dictationState = 'idle';
-let armedAt = 0;
 let confirmed = false;
 let quitting = false;
 
@@ -69,12 +68,6 @@ let rpcSeq = 0;
  * ------------------------------------------------------------------ */
 
 const log = (...args) => console.log('[voxflow]', ...args);
-
-function broadcast(channel, payload) {
-  for (const win of [settingsWindow, overlayWindow, captureWindow]) {
-    if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
-  }
-}
 
 function toSettings(channel, payload) {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
@@ -237,7 +230,11 @@ function createSettingsWindow() {
     }
   });
 
-  settingsWindow.loadFile(path.join(__dirname, '..', 'renderer', 'settings', 'index.html'));
+  // VOXFLOW_PANEL ouvre directement une section — pratique pour itérer sur une
+  // page de réglages sans re-cliquer à chaque relance.
+  settingsWindow.loadFile(path.join(__dirname, '..', 'renderer', 'settings', 'index.html'), {
+    hash: process.env.VOXFLOW_PANEL || ''
+  });
   settingsWindow.once('ready-to-show', () => settingsWindow.show());
   if (IS_DEV) settingsWindow.webContents.openDevTools({ mode: 'detach' });
 
@@ -328,7 +325,6 @@ function armDictation() {
   if (dictationState !== 'idle') return;
   dictationState = 'armed';
   confirmed = false;
-  armedAt = Date.now();
   toCapture('capture:start', config.all);
 }
 
@@ -652,14 +648,11 @@ if (!gotLock) {
     config = new ConfigStore(app.getPath('userData'));
     stats = new StatsStore(app.getPath('userData'));
 
-    // Les modèles livrés avec le dépôt restent utilisables sans recopie
+    // Deux emplacements : ce que l'application télécharge (dossier utilisateur)
+    // et ce que « npm run setup » a posé dans le dépôt. Les deux restent valides.
     whisper = new WhisperEngine({
       binDir: BIN_DIR,
-      modelsDir: fs.existsSync(path.join(MODELS_DIR, config.get('whisper.model') + '.bin'))
-        ? MODELS_DIR
-        : fs.existsSync(BUNDLED_MODELS_DIR)
-          ? BUNDLED_MODELS_DIR
-          : MODELS_DIR,
+      modelsDirs: [MODELS_DIR, BUNDLED_MODELS_DIR],
       tmpDir: TMP_DIR
     });
 
@@ -679,11 +672,20 @@ if (!gotLock) {
     // Le helper d'injection compile du C# au premier lancement : on le prépare
     // en tâche de fond pour que la première dictée soit déjà instantanée.
     injector.start().catch((err) => log('injecteur :', err.message));
-    whisper.init().then((state) => {
+    whisper.init().then(async (state) => {
       log('moteur :', state.ready ? 'prêt (' + whisper.buildKind + ')' : state.reason);
       if (!state.ready) {
         notify('whisper.cpp n\'est pas installé. Ouvrez l\'onglet Transcription.', 'error');
+        return;
       }
+      if (!whisper.hasModel(config.get('whisper.model'))) {
+        notify('Aucun modèle installé. Ouvrez l\'onglet Transcription.', 'error');
+        return;
+      }
+      // Charger le modèle prend quelques secondes : on le fait maintenant plutôt
+      // que de faire attendre l'utilisateur sur sa première dictée.
+      const port = await whisper.ensureServer(config.get('whisper'));
+      log(port ? 'modèle préchargé, serveur sur le port ' + port : 'repli sur le CLI');
     });
 
     config.on('changed', (next, _prev, patch) => {
@@ -691,12 +693,10 @@ if (!gotLock) {
       if (patch.ui && (patch.ui.overlayPosition || patch.ui.showOverlay !== undefined)) {
         if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setBounds(overlayBounds());
       }
-      if (patch.whisper?.model) {
-        whisper.modelsDir = fs.existsSync(path.join(MODELS_DIR, patch.whisper.model + '.bin'))
-          ? MODELS_DIR
-          : fs.existsSync(path.join(BUNDLED_MODELS_DIR, patch.whisper.model + '.bin'))
-            ? BUNDLED_MODELS_DIR
-            : MODELS_DIR;
+      // Changer de modèle, de GPU ou de threads impose de relancer le serveur.
+      // On le fait tout de suite, pour ne pas pénaliser la dictée suivante.
+      if (patch.whisper && ('model' in patch.whisper || 'useGpu' in patch.whisper || 'threads' in patch.whisper)) {
+        whisper.ensureServer(config.get('whisper')).catch((err) => log('serveur :', err.message));
       }
       toSettings('config:changed', next);
     });
@@ -717,6 +717,7 @@ if (!gotLock) {
     hotkey?.stop();
     injector?.stop();
     whisper?.cancel();
+    whisper?.stopServer();
     config?.persistNow();
     stats?.persistNow();
   });
