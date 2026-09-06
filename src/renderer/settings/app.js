@@ -467,22 +467,6 @@ async function refreshStats() {
 async function refreshEngine() {
   engine = await api.invoke('engine:status');
 
-  const dot = $('#engine-dot');
-  const label = $('#engine-status');
-  dot.className = 'status-dot';
-
-  // L'état du moteur ne vit plus que dans le pied de la barre latérale.
-  if (!engine.installed) {
-    dot.classList.add('err');
-    label.textContent = 'Moteur non installé';
-  } else if (!engine.models.length) {
-    dot.classList.add('warn');
-    label.textContent = 'Aucun modèle';
-  } else {
-    dot.classList.add('ok');
-    label.textContent = 'Prêt · ' + (engine.buildKind === 'cuda' ? 'GPU' : 'CPU');
-  }
-
   $('#gpu-help').textContent =
     engine.gpuCapable
       ? 'Votre build supporte CUDA : laissez activé.'
@@ -585,9 +569,6 @@ function renderHotkey() {
     h.activation === 'hold'
       ? 'La dictée dure tant que les touches sont maintenues.'
       : 'Un appui bref démarre puis arrête. Un appui maintenu se comporte comme un talkie-walkie.';
-
-  $('#hotkey-dot').className = 'status-dot ok';
-  $('#hotkey-status').textContent = keys.join(' + ');
 }
 
 bindSegmented('#activation-mode', async (value) => {
@@ -885,7 +866,7 @@ async function boot() {
   config = await api.invoke('config:get');
   appInfo = await api.invoke('app:info');
 
-  $('#app-version').textContent = 'v' + appInfo.version;
+  $('#app-version').textContent = 'V' + appInfo.version.replace(/.0$/, '');
   $('#data-path').textContent = appInfo.userData;
   $('#about-text').textContent =
     'Feather ' +
