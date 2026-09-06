@@ -25,6 +25,7 @@ class Injector extends EventEmitter {
     super();
     this.scriptPath = options.scriptPath;
     this._clipboard = options.clipboard || null;
+    this._clipboardItem = options.clipboardItem;
     this.child = null;
     this.ready = false;
     this.starting = null;
@@ -34,11 +35,73 @@ class Injector extends EventEmitter {
     this.lastError = null;
   }
 
+  /**
+   * Le presse-papiers d'Electron suit désormais l'API asynchrone du web :
+   * `readText()` et `writeText()` renvoient des promesses, et l'écriture de
+   * formats multiples passe par `ClipboardItem`, exporté par le module et non
+   * disponible en global. Tout est chargé paresseusement pour que la classe
+   * reste testable en dehors d'Electron.
+   */
   get clipboard() {
     if (!this._clipboard) {
       this._clipboard = require('electron').clipboard;
     }
     return this._clipboard;
+  }
+
+  get ClipboardItem() {
+    if (this._clipboardItem === undefined) {
+      try {
+        this._clipboardItem = require('electron').ClipboardItem || null;
+      } catch {
+        this._clipboardItem = null;
+      }
+    }
+    return this._clipboardItem;
+  }
+
+  /** Mémorise le contenu courant pour pouvoir le remettre après le collage. */
+  async _snapshotClipboard() {
+    const snapshot = { text: '', html: null };
+    try {
+      snapshot.text = (await this.clipboard.readText()) || '';
+    } catch {
+      /* presse-papiers verrouillé par une autre application */
+    }
+    try {
+      if (typeof this.clipboard.has === 'function' && (await this.clipboard.has('text/html'))) {
+        const items = await this.clipboard.read();
+        for (const item of items || []) {
+          if (item?.types?.includes('text/html')) {
+            snapshot.html = await (await item.getType('text/html')).text();
+            break;
+          }
+        }
+      }
+    } catch {
+      // Le texte seul sera restauré : mieux vaut ça que d'échouer la dictée
+    }
+    return snapshot;
+  }
+
+  async _restoreClipboard(snapshot) {
+    const Item = this.ClipboardItem;
+    try {
+      if (snapshot.html && Item) {
+        await this.clipboard.write([
+          new Item({
+            'text/plain': new Blob([snapshot.text], { type: 'text/plain' }),
+            'text/html': new Blob([snapshot.html], { type: 'text/html' })
+          })
+        ]);
+      } else if (snapshot.text) {
+        await this.clipboard.writeText(snapshot.text);
+      } else {
+        await this.clipboard.clear();
+      }
+    } catch {
+      /* rien à faire : on ne va pas casser la dictée pour une restauration */
+    }
   }
 
   /** Démarre le helper. Idempotent : plusieurs appels partagent la même promesse. */
@@ -157,7 +220,7 @@ class Injector extends EventEmitter {
       await this.start();
     } catch (err) {
       if (options.fallbackToClipboard !== false) {
-        this.clipboard.writeText(payload);
+        await this.clipboard.writeText(payload);
         return { method: 'presse-papiers', chars: payload.length, degraded: true, reason: err.message };
       }
       throw err;
@@ -178,10 +241,12 @@ class Injector extends EventEmitter {
   }
 
   async _paste(payload, options) {
-    const previousText = options.restoreClipboard !== false ? this.clipboard.readText() : null;
-    const previousHtml = options.restoreClipboard !== false ? this.clipboard.readHTML() : null;
+    const restoring = options.restoreClipboard !== false;
+    const snapshot = restoring ? await this._snapshotClipboard() : null;
 
-    this.clipboard.writeText(payload);
+    // L'écriture est asynchrone : il faut l'attendre, sinon le Ctrl+V part
+    // avant que le texte soit réellement dans le presse-papiers.
+    await this.clipboard.writeText(payload);
     // Laisse le temps aux applications qui écoutent le presse-papiers de suivre
     await new Promise((r) => setTimeout(r, 30));
 
@@ -189,24 +254,19 @@ class Injector extends EventEmitter {
       await this._send('PASTE', '', 8000);
     } catch (err) {
       if (options.fallbackToClipboard !== false) {
+        // On laisse volontairement le texte dans le presse-papiers : l'utilisateur
+        // le collera lui-même. Le restaurer ici lui reprendrait sa dictée.
         return { method: 'presse-papiers', chars: payload.length, degraded: true, reason: err.message };
       }
+      if (restoring) await this._restoreClipboard(snapshot);
       throw err;
     }
 
-    if (options.restoreClipboard !== false) {
+    if (restoring) {
+      // L'application cible doit avoir fini de lire le presse-papiers avant
+      // qu'on le remette dans son état d'origine.
       setTimeout(() => {
-        try {
-          if (previousHtml && previousHtml.trim()) {
-            this.clipboard.write({ text: previousText || '', html: previousHtml });
-          } else if (previousText) {
-            this.clipboard.writeText(previousText);
-          } else {
-            this.clipboard.clear();
-          }
-        } catch {
-          /* le presse-papiers était verrouillé par une autre application */
-        }
+        this._restoreClipboard(snapshot).catch(() => {});
       }, 250);
     }
 
