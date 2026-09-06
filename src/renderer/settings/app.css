@@ -42,6 +42,7 @@
   --accent: #4b262f;
   --accent-soft: rgba(75, 38, 47, 0.1);
   --accent-line: rgba(75, 38, 47, 0.4);
+  --accent-hover: #5e303b;
   --on-accent: #ffffff;
 
   /* Série de données (une seule série : pas de légende nécessaire) */
@@ -76,6 +77,7 @@
   --accent: #c97085;
   --accent-soft: rgba(201, 112, 133, 0.16);
   --accent-line: rgba(201, 112, 133, 0.45);
+  --accent-hover: #d8899c;
   --on-accent: #151311;
 
   --series: #c97085;
@@ -485,7 +487,7 @@ input[type='range'] {
   white-space: nowrap;
 }
 
-.btn:hover:not(:disabled) {
+.btn:hover:not(:disabled):not(.primary) {
   background: var(--surface-hover);
 }
 
@@ -501,7 +503,8 @@ input[type='range'] {
 }
 
 .btn.primary:hover:not(:disabled) {
-  filter: brightness(1.08);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 .btn.danger {
