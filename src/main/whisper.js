@@ -10,6 +10,13 @@ const { spawn } = require('child_process');
 const SERVER_RETRY_MS = 60000;
 
 /**
+ * Ce qu'une dictée accepte d'attendre que le serveur soit prêt. Au-delà, le CLI
+ * répond en ~2 s pendant que le chargement se poursuit : mieux vaut ça qu'une
+ * fenêtre figée le temps d'initialiser CUDA, qui peut prendre une minute à froid.
+ */
+const SERVER_WAIT_MS = 2500;
+
+/**
  * Pilote whisper.cpp. On appelle les exécutables en sous-processus plutôt qu'un
  * binding natif : aucune compilation nécessaire, et on peut échanger le build CPU
  * contre le build CUDA sans retoucher au code.
@@ -302,8 +309,16 @@ class WhisperEngine {
     throw new Error('le serveur whisper n\'a pas répondu à temps');
   }
 
-  /** Démarre le serveur si besoin ; le redémarre si le modèle ou le GPU changent. */
-  async ensureServer(cfg) {
+  /**
+   * Démarre le serveur si besoin ; le redémarre si le modèle ou le GPU changent.
+   *
+   * @param {object} cfg
+   * @param {number} [waitMs] Budget d'attente. Passé ce délai on rend `null`
+   *   sans annuler le démarrage : la dictée en cours part sur le CLI pendant que
+   *   le modèle finit de charger, et la suivante trouvera le serveur prêt.
+   *   Le préchauffage, lui, n'a personne derrière : il attend sans limite.
+   */
+  async ensureServer(cfg, waitMs = Infinity) {
     if (!this.serverEnabled || !this.serverBinary) return null;
 
     // Une panne de serveur ne condamne plus la session : on repasse par le CLI
@@ -319,14 +334,33 @@ class WhisperEngine {
     if (this.server && this.serverReady && this.serverSignature === signature) {
       return this.serverPort;
     }
-    if (this.serverStarting) {
-      await this.serverStarting.catch(() => {});
-      if (this.server && this.serverReady && this.serverSignature === signature) {
-        return this.serverPort;
-      }
-    }
-    this.stopServer();
 
+    if (!this.serverStarting || this.serverSignature !== signature) {
+      if (this.serverSignature !== signature) this.stopServer();
+      this._startServer(cfg, signature);
+    }
+
+    if (waitMs === Infinity) {
+      await this.serverStarting.catch(() => {});
+    } else {
+      let minuteur;
+      await Promise.race([
+        this.serverStarting.catch(() => {}),
+        new Promise((r) => {
+          minuteur = setTimeout(r, waitMs);
+          minuteur.unref?.();
+        })
+      ]);
+      clearTimeout(minuteur);
+    }
+
+    return this.server && this.serverReady && this.serverSignature === signature
+      ? this.serverPort
+      : null;
+  }
+
+  /** Lance le serveur en tâche de fond ; personne n'est obligé d'attendre. */
+  _startServer(cfg, signature) {
     this.serverStarting = (async () => {
       const port = await this._findFreePort();
       const args = [
@@ -373,27 +407,31 @@ class WhisperEngine {
       return port;
     })();
 
-    try {
-      const ready = await this.serverStarting;
-      this.serverRetryAt = 0;
-      return ready;
-    } catch (err) {
-      // Un serveur qui ne démarre pas ne doit pas condamner la dictée : le CLI
-      // prend le relais, mais seulement pour un temps — désactiver le chemin
-      // rapide pour toute la session sur un seul incident coûtait dix fois le
-      // temps de transcription à chaque dictée suivante.
-      this.stopServer();
-      this.serverRetryAt = Date.now() + SERVER_RETRY_MS;
-      const detail = this.serverLog.slice(-3).join(' | ');
-      console.warn(
-        '[whisper] serveur indisponible (' + err.message + '), repli sur le CLI' +
-          (detail ? ' — ' + detail : '') +
-          '. Nouvelle tentative dans ' + Math.round(SERVER_RETRY_MS / 1000) + ' s.'
-      );
-      return null;
-    } finally {
-      this.serverStarting = null;
-    }
+    // Le bilan du démarrage est tenu par la tâche elle-même : celui qui a
+    // renoncé à attendre ne doit pas rater une panne survenue après son départ.
+    this.serverStarting = this.serverStarting.then(
+      (port) => {
+        this.serverRetryAt = 0;
+        this.serverStarting = null;
+        return port;
+      },
+      (err) => {
+        // Un serveur qui ne démarre pas ne doit pas condamner la dictée : le CLI
+        // prend le relais, mais seulement pour un temps — désactiver le chemin
+        // rapide pour toute la session sur un seul incident coûtait dix fois le
+        // temps de transcription à chaque dictée suivante.
+        const detail = this.serverLog.slice(-3).join(' | ');
+        this.stopServer();
+        this.serverStarting = null;
+        this.serverRetryAt = Date.now() + SERVER_RETRY_MS;
+        console.warn(
+          '[whisper] serveur indisponible (' + err.message + '), repli sur le CLI' +
+            (detail ? ' — ' + detail : '') +
+            '. Nouvelle tentative dans ' + Math.round(SERVER_RETRY_MS / 1000) + ' s.'
+        );
+        return null;
+      }
+    );
   }
 
   stopServer() {
@@ -474,7 +512,7 @@ class WhisperEngine {
 
     // Le démarrage du serveur peut durer plusieurs secondes ; une annulation
     // pendant cette fenêtre doit être honorée, pas seulement pendant la requête.
-    const port = await this.ensureServer(cfg);
+    const port = await this.ensureServer(cfg, SERVER_WAIT_MS);
     if (abandoned()) {
       return { text: '', language: null, ms: Date.now() - startedAt, cancelled: true, via: 'serveur' };
     }
@@ -495,7 +533,7 @@ class WhisperEngine {
         this.stopServer();
         if (essai === 0) {
           console.warn('[whisper] requête serveur échouée (' + err.message + '), relance du serveur.');
-          activePort = await this.ensureServer(cfg);
+          activePort = await this.ensureServer(cfg, SERVER_WAIT_MS);
           if (abandoned()) {
             return { text: '', language: null, ms: Date.now() - startedAt, cancelled: true, via: 'serveur' };
           }

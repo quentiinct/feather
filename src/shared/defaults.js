@@ -42,8 +42,9 @@ const DEFAULT_CONFIG = {
     // Accélération GPU CUDA si le build cuBLAS est installé
     useGpu: true,
     // Minutes sans dictée avant de libérer la mémoire vidéo. La reprise coûte
-    // le rechargement du modèle (~2 s). 0 garde le modèle chargé en permanence.
-    serverIdleMinutes: 10,
+    // une dictée passée par le CLI (~2 s) pendant que le modèle recharge.
+    // 0 garde le modèle chargé en permanence, pour n'avoir jamais à le repayer.
+    serverIdleMinutes: 30,
     // Amorce donnée au décodeur pour orienter le style / vocabulaire
     initialPrompt: '',
     // Température de décodage
