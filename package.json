@@ -34,6 +34,7 @@
     "files": [
       "src/**/*",
       "resources/**/*",
+      "assets/**/*",
       "package.json",
       "!**/*.map"
     ],

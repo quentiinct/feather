@@ -254,12 +254,46 @@ function createSettingsWindow() {
  * Zone de notification
  * ------------------------------------------------------------------ */
 
-function trayImage(active) {
-  const file = path.join(ROOT, 'assets', active ? 'tray-active.png' : 'tray.png');
-  if (fs.existsSync(file)) {
-    return nativeImage.createFromPath(file).resize({ width: 16, height: 16 });
+/**
+ * La barre des tâches suit le « mode Windows », réglable indépendamment du mode
+ * des applications — `nativeTheme` ne le reflète donc pas. On lit la clé qui
+ * fait foi, sinon une icône claire disparaît sur une barre claire.
+ */
+let lightTaskbar = null;
+
+function readTaskbarTheme() {
+  try {
+    const out = require('child_process').execFileSync(
+      'reg',
+      [
+        'query',
+        'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize',
+        '/v',
+        'SystemUsesLightTheme'
+      ],
+      { encoding: 'utf8', windowsHide: true, timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }
+    );
+    const match = out.match(/SystemUsesLightTheme\s+REG_DWORD\s+0x([0-9a-f]+)/i);
+    return match ? parseInt(match[1], 16) === 1 : false;
+  } catch {
+    // Clé absente : Windows utilise alors une barre sombre
+    return false;
   }
-  return nativeImage.createEmpty();
+}
+
+/** Interroger le registre coûte un processus : on le fait une fois, puis à chaque
+ *  changement de thème signalé par Electron. */
+function taskbarUsesLightTheme() {
+  if (lightTaskbar === null) lightTaskbar = readTaskbarTheme();
+  return lightTaskbar;
+}
+
+function trayImage(active) {
+  const tone = active ? 'active' : taskbarUsesLightTheme() ? 'dark' : 'light';
+  const file = path.join(ROOT, 'assets', 'tray-' + tone + '.png');
+  // Les fichiers sont déjà rendus à 16 px, la taille qu'affiche la zone de
+  // notification : les redimensionner ne ferait qu'empâter le trait.
+  return fs.existsSync(file) ? nativeImage.createFromPath(file) : nativeImage.createEmpty();
 }
 
 function buildTrayMenu() {
@@ -667,6 +701,13 @@ if (!gotLock) {
     createCaptureWindow();
     createOverlayWindow();
     createTray();
+
+    // Bascule clair/sombre de Windows : l'icône du tray doit changer de ton,
+    // sinon elle devient invisible sur la nouvelle barre des tâches.
+    nativeTheme.on('updated', () => {
+      lightTaskbar = readTaskbarTheme();
+      refreshTray();
+    });
     wireHotkey();
 
     // Le helper d'injection compile du C# au premier lancement : on le prépare

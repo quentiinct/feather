@@ -4,9 +4,17 @@
 /**
  * Génère les icônes de Feather sans dépendance graphique.
  *
- * On dessine dans un tampon RGBA puis on encode nous-mêmes le PNG (zlib fait le
- * gros du travail) et le ICO — ça évite d'ajouter sharp ou canvas au projet
- * pour quatre fichiers qui ne changent jamais.
+ * Le motif : une plume dont les barbes sont les barres d'une forme d'onde.
+ * Les deux objets ont la même structure — des segments répartis de part et
+ * d'autre d'un axe — il suffit d'incliner l'axe et de donner aux longueurs
+ * l'enveloppe d'une plume pour que le dessin se lise dans les deux sens.
+ *
+ * Contrainte dominante : rester lisible à 16 px dans la zone de notification.
+ * D'où le nombre de barbes réduit sur les petites tailles, et l'absence de
+ * tout détail qui disparaîtrait à la réduction.
+ *
+ * On encode nous-mêmes le PNG (zlib fait le gros du travail) et le ICO, plutôt
+ * que d'ajouter sharp ou canvas au projet pour quatre fichiers.
  */
 
 const fs = require('fs');
@@ -49,10 +57,7 @@ function encodePng(rgba, size) {
   const raw = Buffer.alloc((stride + 1) * size);
   for (let y = 0; y < size; y += 1) {
     raw[y * (stride + 1)] = 0;
-    Buffer.from(rgba.buffer, rgba.byteOffset + y * stride, stride).copy(
-      raw,
-      y * (stride + 1) + 1
-    );
+    Buffer.from(rgba.buffer, rgba.byteOffset + y * stride, stride).copy(raw, y * (stride + 1) + 1);
   }
 
   const ihdr = Buffer.alloc(13);
@@ -89,7 +94,6 @@ function encodeIco(pngs) {
     entry[3] = 0;
     entry.writeUInt16LE(1, 4); // plans
     entry.writeUInt16LE(32, 6); // bits par pixel
-    entry.writeUInt32BE(0, 8);
     entry.writeUInt32LE(buffer.length, 8);
     entry.writeUInt32LE(offset, 12);
     entries.push(entry);
@@ -99,16 +103,20 @@ function encodeIco(pngs) {
   return Buffer.concat([header, ...entries, ...pngs.map((p) => p.buffer)]);
 }
 
-/* ---------------------------- dessin --------------------------------- */
+/* ---------------------------- rendu ---------------------------------- */
 
-/** Antialiasing par suréchantillonnage : on dessine 4× plus grand puis on réduit. */
+/**
+ * Suréchantillonnage 4× combiné à une couverture analytique sur le bord des
+ * formes. Le suréchantillonnage seul laisserait des marches visibles sur les
+ * diagonales, qui sont justement partout dans ce dessin.
+ */
 const SS = 4;
 
 function createCanvas(size) {
   return { size, data: new Float32Array(size * size * 4) };
 }
 
-function blend(canvas, x, y, r, g, b, a) {
+function blend(canvas, x, y, [r, g, b], a) {
   if (x < 0 || y < 0 || x >= canvas.size || y >= canvas.size || a <= 0) return;
   const i = (y * canvas.size + x) * 4;
   const d = canvas.data;
@@ -126,8 +134,40 @@ function roundedRect(canvas, x0, y0, w, h, radius, colorAt) {
       const dx = Math.max(x0 + radius - x, 0, x - (x0 + w - radius - 1));
       const dy = Math.max(y0 + radius - y, 0, y - (y0 + h - radius - 1));
       if (dx > 0 && dy > 0 && dx * dx + dy * dy > radius * radius) continue;
-      const [r, g, b, a] = colorAt(x, y);
-      blend(canvas, x, y, r, g, b, a);
+      blend(canvas, x, y, colorAt(x, y), 1);
+    }
+  }
+}
+
+/** Distance d'un point au segment [a, b]. */
+function distToSegment(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  let t = lenSq > 0 ? ((px - x1) * dx + (py - y1) * dy) / lenSq : 0;
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const cx = x1 + t * dx;
+  const cy = y1 + t * dy;
+  return Math.hypot(px - cx, py - cy);
+}
+
+/**
+ * Segment épais à extrémités arrondies, dans n'importe quelle orientation.
+ * C'est la primitive unique du dessin : le rachis comme les barbes.
+ */
+function capsule(canvas, x1, y1, x2, y2, thickness, color) {
+  const r = thickness / 2;
+  const minX = Math.max(0, Math.floor(Math.min(x1, x2) - r - 1));
+  const maxX = Math.min(canvas.size - 1, Math.ceil(Math.max(x1, x2) + r + 1));
+  const minY = Math.max(0, Math.floor(Math.min(y1, y2) - r - 1));
+  const maxY = Math.min(canvas.size - 1, Math.ceil(Math.max(y1, y2) + r + 1));
+
+  for (let y = minY; y <= maxY; y += 1) {
+    for (let x = minX; x <= maxX; x += 1) {
+      const d = distToSegment(x + 0.5, y + 0.5, x1, y1, x2, y2);
+      // Couverture progressive sur le dernier pixel : adoucit les diagonales
+      const a = Math.max(0, Math.min(1, r + 0.5 - d));
+      if (a > 0) blend(canvas, x, y, color, a);
     }
   }
 }
@@ -164,56 +204,193 @@ function downsample(canvas, targetSize) {
   return out;
 }
 
-/** Hauteurs relatives des barres : une petite forme d'onde. */
-const WAVE = [0.34, 0.62, 1.0, 0.78, 0.46];
+/* ---------------------------- la plume ------------------------------- */
 
+/**
+ * Longueur relative des barbes, de la base vers la pointe. C'est ce tableau
+ * qui porte la double lecture : son profil général dessine la plume, ses
+ * irrégularités (indices 3 et 4) donnent le rythme d'une forme d'onde.
+ */
+const BARBS_FULL = [0.58, 0.84, 0.96, 1.0, 0.88, 0.94, 0.74, 0.52, 0.3];
+
+/** Sous 48 px, neuf barbes se referment en un bloc illisible. */
+const BARBS_SMALL = [0.72, 1.0, 0.82, 0.96, 0.6];
+
+/** À 16 px, chaque barbe ne dispose que d'un pixel ou deux : il en faut trois. */
+const BARBS_TINY = [0.85, 1.0, 0.7];
+
+/**
+ * Le dessin ne se contente pas d'être réduit, il est simplifié par palier :
+ * moins de barbes, traits plus épais, marge plus fine. Une simple mise à
+ * l'échelle du dessin à neuf barbes donne une tache grise en dessous de 24 px.
+ */
+function variantFor(size) {
+  if (size <= 24) return { barbs: BARBS_TINY, barbW: 0.13, shaftW: 0.1, margin: 0.02 };
+  if (size <= 48) return { barbs: BARBS_SMALL, barbW: 0.08, shaftW: 0.066, margin: 0.04 };
+  return { barbs: BARBS_FULL, barbW: 0.046, shaftW: 0.05, margin: 0.06 };
+}
+
+const lerp = (a, b, t) => a + (b - a) * t;
+
+/**
+ * Construit la plume comme une liste de segments dans un espace arbitraire,
+ * puis la recadre pour occuper la zone demandée. Séparer géométrie et cadrage
+ * permet de retoucher les proportions sans avoir à réajuster les marges.
+ */
+function featherSegments(barbs, barbWidth, shaftWidth) {
+  // Axe de la plume : le calamus dépasse sous la première barbe
+  const quill = { x: 0.2, y: 0.92 };
+  const first = { x: 0.34, y: 0.7 };
+  const tip = { x: 0.78, y: 0.14 };
+
+  const dx = tip.x - first.x;
+  const dy = tip.y - first.y;
+  const len = Math.hypot(dx, dy);
+  const ux = dx / len;
+  const uy = dy / len;
+  // Perpendiculaire unitaire à l'axe
+  const px = -uy;
+  const py = ux;
+
+  // Les barbes ne sont pas perpendiculaires au rachis : elles filent vers la
+  // pointe. C'est ce qui distingue une plume d'une arête de poisson, et c'est
+  // le seul indice qui survive à la réduction en 16 px.
+  const sweep = (34 * Math.PI) / 180;
+  const cos = Math.cos(sweep);
+  const sin = Math.sin(sweep);
+
+  // Demi-largeur maximale ≈ un quart de la longueur de l'axe : au-delà, la
+  // silhouette s'arrondit et cesse de se lire comme une plume.
+  const maxHalf = 0.2;
+  const segments = [{ x1: quill.x, y1: quill.y, x2: tip.x, y2: tip.y, w: shaftWidth }];
+
+  barbs.forEach((rel, i) => {
+    // On s'arrête avant la pointe pour que celle-ci reste nette
+    const t = lerp(0.02, 0.9, barbs.length === 1 ? 0 : i / (barbs.length - 1));
+    const cx = lerp(first.x, tip.x, t);
+    const cy = lerp(first.y, tip.y, t);
+    const half = maxHalf * rel;
+
+    // Une capsule par côté, chacune ouverte vers la pointe
+    for (const side of [1, -1]) {
+      segments.push({
+        x1: cx,
+        y1: cy,
+        x2: cx + (px * side * cos + ux * sin) * half,
+        y2: cy + (py * side * cos + uy * sin) * half,
+        w: barbWidth
+      });
+    }
+  });
+
+  return segments;
+}
+
+/** Met les segments à l'échelle pour remplir un carré de côté `box`, centré. */
+function fitSegments(segments, box, margin) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const s of segments) {
+    const r = s.w / 2;
+    minX = Math.min(minX, s.x1 - r, s.x2 - r);
+    maxX = Math.max(maxX, s.x1 + r, s.x2 + r);
+    minY = Math.min(minY, s.y1 - r, s.y2 - r);
+    maxY = Math.max(maxY, s.y1 + r, s.y2 + r);
+  }
+  const available = box - margin * 2;
+  const scale = available / Math.max(maxX - minX, maxY - minY);
+  const offsetX = margin + (available - (maxX - minX) * scale) / 2 - minX * scale;
+  const offsetY = margin + (available - (maxY - minY) * scale) / 2 - minY * scale;
+
+  return segments.map((s) => ({
+    x1: s.x1 * scale + offsetX,
+    y1: s.y1 * scale + offsetY,
+    x2: s.x2 * scale + offsetX,
+    y2: s.y2 * scale + offsetY,
+    w: s.w * scale
+  }));
+}
+
+/**
+ * @param {number} box côté de la zone de dessin, en pixels suréchantillonnés
+ * @param {number} size taille finale de l'icône, qui détermine la simplification
+ * @param {number} pad marge supplémentaire (la pastille de l'icône applicative)
+ */
+function drawFeather(canvas, box, size, color, pad = 0) {
+  // L'épaisseur vaut environ la moitié de l'écart entre deux barbes : c'est le
+  // vide entre elles qui fait lire « forme d'onde » plutôt que « plumeau ».
+  const v = variantFor(size);
+  const segments = fitSegments(
+    featherSegments(v.barbs, v.barbW, v.shaftW),
+    box,
+    box * (v.margin + pad)
+  );
+  for (const s of segments) capsule(canvas, s.x1, s.y1, s.x2, s.y2, s.w, color);
+}
+
+/* ---------------------------- les icônes ----------------------------- */
+
+/** Icône applicative : plume blanche sur pastille dégradée. */
 function drawAppIcon(size) {
   const S = size * SS;
   const canvas = createCanvas(S);
 
-  // Fond dégradé indigo -> violet, en diagonale
   roundedRect(canvas, 0, 0, S, S, S * 0.22, (x, y) => {
     const t = (x / S) * 0.45 + (y / S) * 0.55;
-    return [99 + (168 - 99) * t, 102 + (85 - 102) * t, 241 + (247 - 241) * t, 1];
+    return [lerp(99, 168, t), lerp(102, 85, t), lerp(241, 247, t)];
   });
 
-  // Barres blanches centrées
-  const barW = S * 0.075;
-  const gap = S * 0.055;
-  const totalW = WAVE.length * barW + (WAVE.length - 1) * gap;
-  const startX = (S - totalW) / 2;
-  const maxH = S * 0.46;
-
-  WAVE.forEach((ratio, i) => {
-    const h = maxH * ratio;
-    const x = startX + i * (barW + gap);
-    const y = (S - h) / 2;
-    roundedRect(canvas, x, y, barW, h, barW / 2, () => [255, 255, 255, 0.97]);
-  });
-
+  // La pastille impose sa propre marge, en plus de celle du dessin
+  drawFeather(canvas, S, size, [255, 255, 255], size <= 24 ? 0.05 : 0.12);
   return downsample(canvas, size);
 }
 
-function drawTrayIcon(size, active) {
+/**
+ * Icône de la zone de notification : monochrome sur fond transparent.
+ *
+ * Windows pose cette icône sur une barre claire ou sombre selon le réglage
+ * système, et ne propose aucun équivalent des « template images » de macOS.
+ * Un ton unique est donc impossible : un gris clair disparaît sur une barre
+ * claire. On produit les deux versions, l'application choisit à l'exécution.
+ *
+ * @param {'light'|'dark'|'active'} tone  `light` = tracé clair pour barre
+ *   sombre, `dark` = tracé sombre pour barre claire, `active` = enregistrement.
+ */
+function drawTrayIcon(size, tone = 'light') {
   const S = size * SS;
   const canvas = createCanvas(S);
-
-  // Monochrome : Windows affiche l'icône sur une barre claire ou sombre
-  const barW = S * 0.11;
-  const gap = S * 0.075;
-  const totalW = WAVE.length * barW + (WAVE.length - 1) * gap;
-  const startX = (S - totalW) / 2;
-  const maxH = S * 0.74;
-
-  WAVE.forEach((ratio, i) => {
-    const h = maxH * ratio;
-    const x = startX + i * (barW + gap);
-    const y = (S - h) / 2;
-    const color = active ? [244, 63, 94] : [235, 235, 235];
-    roundedRect(canvas, x, y, barW, h, barW / 2, () => [...color, 1]);
-  });
-
+  const color =
+    tone === 'active' ? [244, 63, 94] : tone === 'dark' ? [38, 38, 40] : [240, 240, 240];
+  drawFeather(canvas, S, size, color);
   return downsample(canvas, size);
+}
+
+/**
+ * Même géométrie, exportée en SVG pour la barre de titre de l'application.
+ * Passer par la source commune évite que le logo de l'interface et celui des
+ * icônes divergent à la première retouche.
+ */
+function featherSvg(box = 16, sizeHint = 64) {
+  const v = variantFor(sizeHint);
+  const segments = fitSegments(
+    featherSegments(v.barbs, v.barbW, v.shaftW),
+    box,
+    box * v.margin
+  );
+  const round = (n) => Math.round(n * 100) / 100;
+  const lines = segments
+    .map(
+      (s) =>
+        '<path d="M' + round(s.x1) + ' ' + round(s.y1) + 'L' + round(s.x2) + ' ' + round(s.y2) +
+        '" stroke-width="' + round(s.w) + '"/>'
+    )
+    .join('');
+  return (
+    '<svg viewBox="0 0 ' + box + ' ' + box + '" fill="none" stroke="currentColor" ' +
+    'stroke-linecap="round">' + lines + '</svg>'
+  );
 }
 
 /* ---------------------------- écriture ------------------------------- */
@@ -222,21 +399,26 @@ function main() {
   fs.mkdirSync(ASSETS, { recursive: true });
 
   const sizes = [256, 128, 64, 48, 32, 16];
-  const pngs = sizes.map((size) => ({
-    size,
-    buffer: encodePng(drawAppIcon(size), size)
-  }));
+  const pngs = sizes.map((size) => ({ size, buffer: encodePng(drawAppIcon(size), size) }));
 
   fs.writeFileSync(path.join(ASSETS, 'icon.png'), pngs[0].buffer);
   fs.writeFileSync(path.join(ASSETS, 'icon.ico'), encodeIco(pngs));
-  fs.writeFileSync(path.join(ASSETS, 'tray.png'), encodePng(drawTrayIcon(32, false), 32));
-  fs.writeFileSync(path.join(ASSETS, 'tray-active.png'), encodePng(drawTrayIcon(32, true), 32));
 
-  const list = ['icon.png', 'icon.ico', 'tray.png', 'tray-active.png'];
-  for (const name of list) {
+  // La zone de notification affiche 16 px : on rend à cette taille plutôt que
+  // de laisser Electron réduire un 32 px, ce qui empâterait le trait.
+  fs.writeFileSync(path.join(ASSETS, 'tray-light.png'), encodePng(drawTrayIcon(16, 'light'), 16));
+  fs.writeFileSync(path.join(ASSETS, 'tray-dark.png'), encodePng(drawTrayIcon(16, 'dark'), 16));
+  fs.writeFileSync(path.join(ASSETS, 'tray-active.png'), encodePng(drawTrayIcon(16, 'active'), 16));
+
+  // Le logo de la barre de titre sort de la même géométrie que les icônes
+  fs.writeFileSync(path.join(ASSETS, 'mark.svg'), featherSvg(16, 64) + '\n');
+
+  for (const name of ['icon.png', 'icon.ico', 'tray-light.png', 'tray-dark.png', 'tray-active.png', 'mark.svg']) {
     const bytes = fs.statSync(path.join(ASSETS, name)).size;
     process.stdout.write('  ' + name.padEnd(16) + (bytes / 1024).toFixed(1) + ' Ko\n');
   }
 }
 
-main();
+if (require.main === module) main();
+
+module.exports = { drawAppIcon, drawTrayIcon, featherSvg, encodePng, encodeIco };

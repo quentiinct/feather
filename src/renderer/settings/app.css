@@ -113,10 +113,10 @@ body {
 }
 
 .brand-mark {
-  width: 15px;
-  height: 15px;
-  border-radius: 5px;
-  background: linear-gradient(140deg, var(--series), #a855f7);
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  color: var(--series);
 }
 
 .window-buttons {
