@@ -1,21 +1,24 @@
 ```
-                       ######
-                       #########
-               ##       #############
-             #######   ##############
-             ##############
-               ################
-     #####     ################
-    ###############
-     ##############
-      ###############
-    #######
-  ######
- #####
+▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄
 
-       =[ Feather v1.0 — local dictation for Windows      ]
-+ -- --=[ whisper.cpp · CUDA · ~200 ms per phrase         ]
-+ -- --=[ no account, no network, nothing leaves the box  ]
+            ✧                           ▄████▄
+                                  ▄▄▄▄   █████████▄           ✦
+                                 ▀█████▄███▀▀▀▀▀▀▀
+                             ▄▄    ███████████▄
+                           ▀████▄▄████▀▀▀▀▀▀▀▀
+        ✦                   ▀██████████▄
+                           ▄████▀▀▀▀▀▀▀                           ✧
+                         ████▀
+
+██████████ ██████████   ██████   ██████████ ██      ██ ██████████ ████████
+██         ██         ██      ██     ██     ██      ██ ██         ██      ██
+████████   ████████   ██████████     ██     ██████████ ████████   ████████
+██         ██         ██      ██     ██     ██      ██ ██         ██    ██
+██         ██████████ ██      ██     ██     ██      ██ ██████████ ██      ██
+
+              ✦   speak, and it writes where your cursor is   ✦
+          ──────  v1.0 · whisper.cpp · 100% local · Windows  ──────
+▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄▀▄
 ```
 
 Hold a shortcut, speak, and the text lands in whatever window has focus — your editor,
@@ -160,23 +163,23 @@ the substitution.
 
 ```
    Ctrl + Shift            uiohook-napi, low-level keyboard hook
-        |                  Electron cannot register modifier-only shortcuts
-        v
+        │                  Electron cannot register modifier-only shortcuts
+        ▼
    hidden window           microphone stays open, 16 kHz mono PCM
-        |                  reopening it per dictation would blink the OS
-        v                  indicator and clip the first words
+        │                  reopening it per dictation would blink the OS
+        ▼                  indicator and clip the first words
    WAV in %TEMP%
-        |
-        v
+        │
+        ▼
    whisper-server          resident HTTP server, model held in VRAM
-        |   \__ fallback   whisper-cli, ~2 s, used if the server is not ready
-        v
+        │   └─ fallback    whisper-cli, ~2 s, used if the server is not ready
+        ▼
    cleanup rules           fillers, stutters, spacing, capitalisation,
-        |                  typography, dictionary, spoken line breaks
-        v
+        │                  typography, dictionary, spoken line breaks
+        ▼
    injection               clipboard paste + Ctrl+V, through a persistent
-        |                  PowerShell SendInput helper
-        v
+        │                  PowerShell SendInput helper
+        ▼
    your application
 ```
 
