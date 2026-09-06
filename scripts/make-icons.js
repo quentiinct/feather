@@ -15,6 +15,11 @@
  *
  * On encode nous-mêmes le PNG (zlib fait le gros du travail) et le ICO, plutôt
  * que d'ajouter sharp ou canvas au projet pour quatre fichiers.
+ *
+ * ATTENTION : icon.png et icon.ico ne viennent plus d'ici. Ils sont dérivés de
+ * l'image source dans assets/ (voir assets/README.md). Relancer ce script les
+ * écraserait par le tracé procédural. Seules les icônes de la zone de
+ * notification et mark.svg sont encore à jour.
  */
 
 const fs = require('fs');

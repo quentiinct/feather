@@ -37,7 +37,10 @@
       "resources/**/*",
       "assets/**/*",
       "package.json",
-      "!**/*.map"
+      "!**/*.map",
+      "!**/*.md",
+      "!assets/ChatGPT*",
+      "!assets/Gemini*"
     ],
     "extraResources": [
       {

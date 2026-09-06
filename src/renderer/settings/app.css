@@ -148,10 +148,10 @@ body {
 }
 
 .brand-mark {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   flex: 0 0 auto;
-  color: var(--accent);
+  border-radius: 5px;
 }
 
 .window-buttons {
