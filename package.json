@@ -1,8 +1,8 @@
 {
-  "name": "voxflow",
-  "productName": "VoxFlow",
+  "name": "feather",
+  "productName": "Feather",
   "version": "0.1.0",
-  "description": "Dictée vocale locale et instantanée pour Windows — parlez, VoxFlow écrit dans n'importe quelle application.",
+  "description": "Dictée vocale locale et instantanée pour Windows — parlez, Feather écrit dans n'importe quelle application.",
   "main": "src/main/index.js",
   "author": "Quentin Courtade",
   "license": "MIT",
@@ -25,8 +25,8 @@
     "electron-builder": "^26.15.3"
   },
   "build": {
-    "appId": "com.quentincourtade.voxflow",
-    "productName": "VoxFlow",
+    "appId": "com.quentincourtade.feather",
+    "productName": "Feather",
     "directories": {
       "output": "dist",
       "buildResources": "assets"
@@ -61,7 +61,7 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "VoxFlow"
+      "shortcutName": "Feather"
     },
     "asarUnpack": [
       "resources/inject.ps1"

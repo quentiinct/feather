@@ -12,7 +12,7 @@ function openStream(url, redirectsLeft = MAX_REDIRECTS) {
   return new Promise((resolve, reject) => {
     const req = https.get(
       url,
-      { headers: { 'User-Agent': 'VoxFlow', Accept: '*/*' } },
+      { headers: { 'User-Agent': 'Feather', Accept: '*/*' } },
       (res) => {
         const { statusCode, headers } = res;
         if (statusCode >= 300 && statusCode < 400 && headers.location) {

@@ -32,7 +32,7 @@ const ROOT = path.join(__dirname, '..', '..');
 const BIN_DIR = app.isPackaged ? path.join(process.resourcesPath, 'bin') : path.join(ROOT, 'resources', 'bin');
 const MODELS_DIR = path.join(app.getPath('userData'), 'models');
 const BUNDLED_MODELS_DIR = path.join(ROOT, 'resources', 'models');
-const TMP_DIR = path.join(os.tmpdir(), 'voxflow');
+const TMP_DIR = path.join(os.tmpdir(), 'feather');
 const INJECT_SCRIPT = app.isPackaged
   ? path.join(process.resourcesPath, 'app.asar.unpacked', 'resources', 'inject.ps1')
   : path.join(ROOT, 'resources', 'inject.ps1');
@@ -67,7 +67,7 @@ let rpcSeq = 0;
  * Utilitaires
  * ------------------------------------------------------------------ */
 
-const log = (...args) => console.log('[voxflow]', ...args);
+const log = (...args) => console.log('[feather]', ...args);
 
 function toSettings(channel, payload) {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
@@ -176,7 +176,7 @@ function createOverlayWindow() {
     skipTaskbar: true,
     alwaysOnTop: true,
     // Capital : l'overlay ne doit jamais voler le focus, sinon le texte
-    // serait collé dans VoxFlow au lieu de l'application de l'utilisateur.
+    // serait collé dans Feather au lieu de l'application de l'utilisateur.
     focusable: false,
     show: false,
     hasShadow: false,
@@ -230,10 +230,10 @@ function createSettingsWindow() {
     }
   });
 
-  // VOXFLOW_PANEL ouvre directement une section — pratique pour itérer sur une
+  // FEATHER_PANEL ouvre directement une section — pratique pour itérer sur une
   // page de réglages sans re-cliquer à chaque relance.
   settingsWindow.loadFile(path.join(__dirname, '..', 'renderer', 'settings', 'index.html'), {
-    hash: process.env.VOXFLOW_PANEL || ''
+    hash: process.env.FEATHER_PANEL || ''
   });
   settingsWindow.once('ready-to-show', () => settingsWindow.show());
   if (IS_DEV) settingsWindow.webContents.openDevTools({ mode: 'detach' });
@@ -276,7 +276,7 @@ function buildTrayMenu() {
     },
     { type: 'separator' },
     {
-      label: 'Quitter VoxFlow',
+      label: 'Quitter Feather',
       click: () => {
         quitting = true;
         app.quit();
@@ -287,7 +287,7 @@ function buildTrayMenu() {
 
 function createTray() {
   tray = new Tray(trayImage(false));
-  tray.setToolTip('VoxFlow — dictée vocale locale');
+  tray.setToolTip('Feather — dictée vocale locale');
   tray.setContextMenu(buildTrayMenu());
   tray.on('click', () => createSettingsWindow());
 }
@@ -297,7 +297,7 @@ function refreshTray() {
   tray.setContextMenu(buildTrayMenu());
   tray.setImage(trayImage(dictationState === 'recording'));
   tray.setToolTip(
-    dictationState === 'recording' ? 'VoxFlow — à l\'écoute' : 'VoxFlow — dictée vocale locale'
+    dictationState === 'recording' ? 'Feather — à l\'écoute' : 'Feather — dictée vocale locale'
   );
 }
 
@@ -538,7 +538,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('engine:testInjection', async () => {
-    const phrase = 'VoxFlow fonctionne : ceci a été écrit par le module d\'injection.';
+    const phrase = 'Feather fonctionne : ceci a été écrit par le module d\'injection.';
     return injector.insert(phrase, config.get('output'));
   });
 
@@ -571,7 +571,7 @@ function registerIpcHandlers() {
     modelsDir: MODELS_DIR,
     binDir: BIN_DIR,
     models: MODELS,
-    repository: 'https://github.com/quentiinct/voxflow'
+    repository: 'https://github.com/quentiinct/feather'
   }));
 
   ipcMain.handle('app:openPath', (_event, which) => {

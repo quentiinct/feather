@@ -6,7 +6,7 @@
  * principal — la configuration complète n'est jamais recomposée côté rendu.
  */
 
-const api = window.voxflow;
+const api = window.feather;
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -920,7 +920,7 @@ async function boot() {
   $('#app-version').textContent = 'v' + appInfo.version;
   $('#data-path').textContent = appInfo.userData;
   $('#about-text').textContent =
-    'VoxFlow ' +
+    'Feather ' +
     appInfo.version +
     ' — dictée vocale entièrement locale, basée sur whisper.cpp. Electron ' +
     appInfo.electron +

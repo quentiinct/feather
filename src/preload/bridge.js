@@ -127,4 +127,4 @@ const api = {
   }
 };
 
-contextBridge.exposeInMainWorld('voxflow', api);
+contextBridge.exposeInMainWorld('feather', api);

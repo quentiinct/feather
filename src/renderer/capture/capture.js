@@ -7,7 +7,7 @@
  * ce qui évite de redemander l'autorisation micro à chaque dictée.
  */
 
-const api = window.voxflow;
+const api = window.feather;
 
 const state = {
   context: null,

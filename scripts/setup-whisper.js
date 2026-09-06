@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Installe les prérequis natifs de VoxFlow :
+ * Installe les prérequis natifs de Feather :
  *   1. les binaires whisper.cpp pour Windows x64 (build CUDA si une carte NVIDIA est détectée) ;
  *   2. le modèle de transcription par défaut.
  *
@@ -90,7 +90,7 @@ function verify(exeName) {
 }
 
 async function main() {
-  log('VoxFlow — installation des composants natifs');
+  log('Feather — installation des composants natifs');
   log('════════════════════════════════════════════');
 
   if (process.platform !== 'win32') {

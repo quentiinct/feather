@@ -419,7 +419,7 @@ class WhisperEngine {
 
   /** Chemin de repli : un processus par transcription, modèle rechargé à chaque fois. */
   _transcribeViaCli(wavPath, cfg) {
-    const outPrefix = path.join(this.tmpDir, 'vox-' + Date.now());
+    const outPrefix = path.join(this.tmpDir, 'feather-' + Date.now());
     const args = this._buildArgs(wavPath, cfg, outPrefix);
     const startedAt = Date.now();
 

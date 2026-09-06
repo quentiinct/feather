@@ -8,7 +8,7 @@ const extract = require('extract-zip');
 
 const { downloadFile } = require('./downloader');
 
-const WHISPER_TAG = process.env.VOXFLOW_WHISPER_TAG || 'b4938';
+const WHISPER_TAG = process.env.FEATHER_WHISPER_TAG || 'b4938';
 const RELEASE_BASE = 'https://github.com/ggml-org/whisper.cpp/releases/download/' + WHISPER_TAG;
 
 const ASSETS = {
@@ -60,7 +60,7 @@ function flatten(binDir) {
 async function installBinaries(binDir, onProgress, forceKind) {
   const kind = forceKind || (detectNvidia() ? 'cuda' : 'cpu');
   const asset = ASSETS[kind];
-  const zipPath = path.join(os.tmpdir(), 'voxflow-' + asset);
+  const zipPath = path.join(os.tmpdir(), 'feather-' + asset);
 
   await downloadFile(RELEASE_BASE + '/' + asset, zipPath, onProgress);
 

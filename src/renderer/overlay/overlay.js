@@ -5,7 +5,7 @@
  * processus principal, et relaie un clic pour arrêter la dictée en cours.
  */
 
-const api = window.voxflow;
+const api = window.feather;
 
 const BAR_COUNT = 13;
 const els = {

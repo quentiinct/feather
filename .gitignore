@@ -15,7 +15,7 @@ resources/models/
 *.dll
 
 # Données locales / config utilisateur
-.voxflow/
+.feather/
 config.local.json
 
 # Logs

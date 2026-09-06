@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Génère les icônes de VoxFlow sans dépendance graphique.
+ * Génère les icônes de Feather sans dépendance graphique.
  *
  * On dessine dans un tampon RGBA puis on encode nous-mêmes le PNG (zlib fait le
  * gros du travail) et le ICO — ça évite d'ajouter sharp ou canvas au projet

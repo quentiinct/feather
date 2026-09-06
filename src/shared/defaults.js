@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Schéma de configuration de VoxFlow.
+ * Schéma de configuration de Feather.
  * Toute valeur absente du fichier utilisateur retombe sur ces défauts
  * (fusion récursive faite par src/main/config.js).
  */

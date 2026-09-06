@@ -1,4 +1,4 @@
-# VoxFlow
+# Feather
 
 Dictée vocale pour Windows, entièrement locale. Vous appuyez sur **Ctrl + Maj**, vous
 parlez, et le texte s'écrit dans l'application où se trouve votre curseur — éditeur de
@@ -15,11 +15,11 @@ et aucun octet d'audio ne quitte l'ordinateur.
 - **Un raccourci, n'importe où.** `Ctrl + Maj` par défaut. Appui bref pour démarrer et
   arrêter, appui maintenu pour un fonctionnement talkie-walkie. Le raccourci cohabite
   avec vos autres raccourcis : si vous enchaînez sur une troisième touche
-  (`Ctrl + Maj + T`), VoxFlow annule sans rien écrire.
+  (`Ctrl + Maj + T`), Feather annule sans rien écrire.
 - **Transcription locale et rapide.** whisper.cpp avec accélération CUDA quand une carte
   NVIDIA est présente. Le modèle reste chargé en mémoire vidéo entre deux dictées :
   **~210 ms** pour huit secondes de parole sur une RTX 3060 (modèle `large-v3-turbo-q5`).
-- **Nettoyage du texte.** Whisper est fidèle, mais l'oral n'est pas de l'écrit. VoxFlow
+- **Nettoyage du texte.** Whisper est fidèle, mais l'oral n'est pas de l'écrit. Feather
   supprime les hésitations, les répétitions, ponctue et applique votre dictionnaire
   personnel. Trois modes, tous gratuits — voir plus bas.
 - **Insertion partout.** Collage via le presse-papiers (restauré juste après) ou frappe
@@ -31,7 +31,7 @@ et aucun octet d'audio ne quitte l'ordinateur.
 
 L'application vit dans la zone de notification. Pendant une dictée, une pastille
 discrète affiche le niveau sonore et le chronomètre ; elle ne prend jamais le focus,
-sinon le texte atterrirait dans VoxFlow au lieu de votre éditeur.
+sinon le texte atterrirait dans Feather au lieu de votre éditeur.
 
 ---
 
@@ -40,8 +40,8 @@ sinon le texte atterrirait dans VoxFlow au lieu de votre éditeur.
 Prérequis : **Windows 10/11 x64** et **Node.js 20+**.
 
 ```bash
-git clone https://github.com/quentiinct/voxflow.git
-cd voxflow
+git clone https://github.com/quentiinct/feather.git
+cd feather
 npm install
 npm run setup     # télécharge whisper.cpp + le modèle par défaut
 npm start
@@ -93,9 +93,9 @@ winget install Ollama.Ollama
 ollama pull qwen2.5:3b-instruct
 ```
 
-Puis, dans VoxFlow : **Nettoyage → LLM local → Tester**. Un modèle de 3 milliards de
+Puis, dans Feather : **Nettoyage → LLM local → Tester**. Un modèle de 3 milliards de
 paramètres tient largement dans la mémoire d'une RTX 3060 et ajoute environ une seconde.
-Si Ollama ne répond pas ou dépasse le délai configuré, VoxFlow retombe automatiquement
+Si Ollama ne répond pas ou dépasse le délai configuré, Feather retombe automatiquement
 sur les règles — une dictée n'est jamais perdue à cause du LLM.
 
 ---
@@ -130,7 +130,7 @@ Quelques choix qui méritent une explication :
   complet, la capture démarre en silence ; elle n'est confirmée qu'après 160 ms, le temps
   de voir si vous tapiez en fait un vrai raccourci.
 - **whisper.cpp tourne en serveur, pas en ligne de commande.** Un appel à `whisper-cli`
-  recharge le modèle à chaque fois — 2 s pour un `large-v3-turbo-q5`. VoxFlow garde
+  recharge le modèle à chaque fois — 2 s pour un `large-v3-turbo-q5`. Feather garde
   `whisper-server` vivant et lui envoie le WAV en HTTP local : 210 ms au lieu de 2 s.
   Le modèle est même préchargé au démarrage de l'application, pour que la toute
   première dictée soit déjà rapide. Si le serveur ne démarre pas, meurt, ou refuse une
@@ -156,7 +156,7 @@ Quelques choix qui méritent une explication :
 | Seuil de silence | Micro | Montez-le si des dictées vides passent à travers |
 
 Réglages, statistiques et historique sont stockés en clair dans
-`%APPDATA%\VoxFlow\` (bouton **Général → Ouvrir**).
+`%APPDATA%\Feather\` (bouton **Général → Ouvrir**).
 
 ---
 

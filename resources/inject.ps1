@@ -1,4 +1,4 @@
-# VoxFlow - helper d'injection clavier
+# Feather - helper d'injection clavier
 #
 # Ce script est lance une seule fois au demarrage de l'application et reste en
 # vie : il lit des commandes sur son entree standard et les traduit en appels
@@ -21,7 +21,7 @@ Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
 
-public static class VoxInput
+public static class FeatherInput
 {
     [StructLayout(LayoutKind.Sequential)]
     public struct MOUSEINPUT
@@ -166,7 +166,7 @@ while ($true) {
                 Write-Output "$id|OK|PONG"
             }
             'PASTE' {
-                [VoxInput]::Paste()
+                [FeatherInput]::Paste()
                 Write-Output "$id|OK|"
             }
             'TYPE' {
@@ -178,11 +178,11 @@ while ($true) {
                     $b64 = $split[1]
                 }
                 $text = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($b64))
-                [VoxInput]::TypeText($text, $delay)
+                [FeatherInput]::TypeText($text, $delay)
                 Write-Output "$id|OK|$($text.Length)"
             }
             'KEY' {
-                [VoxInput]::PressKey([uint16]$payload)
+                [FeatherInput]::PressKey([uint16]$payload)
                 Write-Output "$id|OK|"
             }
             'QUIT' {
