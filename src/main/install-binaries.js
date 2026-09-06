@@ -3,10 +3,57 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFileSync } = require('child_process');
-const extract = require('extract-zip');
+const { execFileSync, execFile } = require('child_process');
 
 const { downloadFile } = require('./downloader');
+
+/**
+ * bsdtar livré avec Windows (depuis 1803). Le chemin est absolu à dessein :
+ * une installation de Git place son propre `tar` (GNU) plus tôt dans le PATH,
+ * et celui-là ne sait pas lire un zip.
+ */
+const SYSTEM_TAR = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
+
+/**
+ * Décompresse une archive zip.
+ *
+ * Passe par bsdtar plutôt que par une bibliothèque npm : il refuse par défaut
+ * les chemins absolus, les « .. » et l'écriture au travers d'un lien symbolique
+ * — précisément la faille qui vaut à extract-zip son avis GHSA-jmr9-qjv8-65gv,
+ * sans correctif en amont.
+ */
+function unzip(zipPath, destDir) {
+  return new Promise((resolve, reject) => {
+    if (!fs.existsSync(SYSTEM_TAR)) {
+      reject(new Error('tar.exe introuvable dans System32 : Windows 10 1803 ou plus récent requis'));
+      return;
+    }
+    execFile(
+      SYSTEM_TAR,
+      ['-xf', zipPath, '-C', destDir],
+      { windowsHide: true, timeout: 10 * 60 * 1000, maxBuffer: 1024 * 1024 },
+      (err, _stdout, stderr) => {
+        if (err) reject(new Error('décompression impossible : ' + (stderr || err.message).trim()));
+        else resolve();
+      }
+    );
+  });
+}
+
+/**
+ * Deuxième barrière : l'archive ne doit contenir que des fichiers et des
+ * dossiers. Un lien, même resté à l'intérieur, n'a rien à faire dans une
+ * distribution de binaires — on préfère refuser l'installation.
+ */
+function assertNoLinks(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isSymbolicLink()) {
+      throw new Error("l'archive contient un lien symbolique (" + entry.name + '), installation refusée');
+    }
+    if (entry.isDirectory()) assertNoLinks(full);
+  }
+}
 
 const WHISPER_TAG = process.env.FEATHER_WHISPER_TAG || 'b4938';
 const RELEASE_BASE = 'https://github.com/ggml-org/whisper.cpp/releases/download/' + WHISPER_TAG;
@@ -69,8 +116,9 @@ async function installBinaries(binDir, onProgress, forceKind) {
   const stagingDir = binDir + '.new';
   fs.rmSync(stagingDir, { recursive: true, force: true });
   fs.mkdirSync(stagingDir, { recursive: true });
-  await extract(zipPath, { dir: stagingDir });
+  await unzip(zipPath, stagingDir);
   fs.unlinkSync(zipPath);
+  assertNoLinks(stagingDir);
   flatten(stagingDir);
 
   const exe = ['whisper-cli.exe', 'main.exe'].find((n) => fs.existsSync(path.join(stagingDir, n)));
