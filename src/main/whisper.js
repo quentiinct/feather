@@ -48,6 +48,38 @@ class WhisperEngine {
     this.serverStarting = null;
     this.serverEnabled = true;
     this.lastPath = null;
+
+    /**
+     * Le modèle occupe la mémoire vidéo tant que le serveur vit. On le libère
+     * après une période sans dictée, quitte à repayer le chargement (~2 s) à la
+     * reprise. `0` garde le serveur en vie indéfiniment.
+     */
+    this.idleTimer = null;
+    this.idleMs = 0;
+  }
+
+  /** Repousse le déchargement du modèle ; appelé après chaque transcription. */
+  scheduleIdleUnload(cfg) {
+    clearTimeout(this.idleTimer);
+    this.idleTimer = null;
+
+    const minutes = Number(cfg?.serverIdleMinutes ?? 0);
+    this.idleMs = Number.isFinite(minutes) && minutes > 0 ? minutes * 60000 : 0;
+    if (!this.idleMs || !this.server) return;
+
+    this.idleTimer = setTimeout(() => {
+      this.idleTimer = null;
+      if (!this.server) return;
+      console.log('[whisper] inactif depuis ' + minutes + ' min, déchargement du modèle.');
+      this.stopServer();
+    }, this.idleMs);
+    // Un modèle déchargé ne doit pas empêcher l'application de se fermer.
+    this.idleTimer.unref?.();
+  }
+
+  _cancelIdleUnload() {
+    clearTimeout(this.idleTimer);
+    this.idleTimer = null;
   }
 
   /** Emplacements possibles de l'exécutable, du plus spécifique au plus générique. */
@@ -327,6 +359,7 @@ class WhisperEngine {
   }
 
   stopServer() {
+    this._cancelIdleUnload();
     if (this.server && !this.server.killed) {
       try {
         this.server.kill();
@@ -376,6 +409,16 @@ class WhisperEngine {
    * @returns {Promise<{text:string, language:string|null, ms:number, via:string}>}
    */
   async transcribe(wavPath, cfg) {
+    // Le minuteur ne court qu'entre deux dictées, jamais pendant l'une d'elles.
+    this._cancelIdleUnload();
+    try {
+      return await this._transcribe(wavPath, cfg);
+    } finally {
+      this.scheduleIdleUnload(cfg);
+    }
+  }
+
+  async _transcribe(wavPath, cfg) {
     const state = await this.init();
     if (!state.ready) {
       throw new Error("whisper.cpp n'est pas installé. Lancez « npm run setup ».");

@@ -41,6 +41,9 @@ const DEFAULT_CONFIG = {
     threads: 0,
     // Accélération GPU CUDA si le build cuBLAS est installé
     useGpu: true,
+    // Minutes sans dictée avant de libérer la mémoire vidéo. La reprise coûte
+    // le rechargement du modèle (~2 s). 0 garde le modèle chargé en permanence.
+    serverIdleMinutes: 10,
     // Amorce donnée au décodeur pour orienter le style / vocabulaire
     initialPrompt: '',
     // Température de décodage
@@ -65,6 +68,8 @@ const DEFAULT_CONFIG = {
       capitalizeSentences: true,
       // Supprime les répétitions immédiates ("le le chat")
       dedupeWords: true,
+      // « à la ligne » / « nouveau paragraphe » dictés deviennent de vrais sauts
+      lineBreakCommands: true,
       trimTrailingPeriod: false
     },
     llm: {

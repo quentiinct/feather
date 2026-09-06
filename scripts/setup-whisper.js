@@ -14,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-const { downloadFile, formatBytes } = require('../src/main/downloader');
+const { downloadFile, formatBytes, checkGgmlFile } = require('../src/main/downloader');
 const { installBinaries, detectNvidia, WHISPER_TAG } = require('../src/main/install-binaries');
 const { MODELS, modelUrl, findModel } = require('../src/shared/models');
 const { DEFAULT_CONFIG } = require('../src/shared/defaults');
@@ -66,7 +66,13 @@ async function installModel(modelId) {
   }
 
   log('\n▸ Modèle ' + model.label + ' (~' + model.sizeMB + ' Mo)');
-  await downloadFile(modelUrl(model.id), dest, (p) => drawProgress('téléchargement', p));
+  await downloadFile(
+    modelUrl(model.id),
+    dest,
+    (p) => drawProgress('téléchargement', p),
+    undefined,
+    (tmpPath) => checkGgmlFile(tmpPath, model.sizeMB * 1048576)
+  );
   process.stdout.write('\n');
   log('  ✔ ' + path.relative(ROOT, dest));
   return dest;

@@ -44,8 +44,10 @@ function openStream(url, redirectsLeft = MAX_REDIRECTS) {
  * @param {string} destPath
  * @param {(p:{received:number,total:number,percent:number,speedBps:number})=>void} [onProgress]
  * @param {AbortSignal} [signal]
+ * @param {(tmpPath:string, bytes:number)=>string|null} [verify]
+ *   Contrôle du contenu avant de publier le fichier définitif.
  */
-async function downloadFile(url, destPath, onProgress, signal) {
+async function downloadFile(url, destPath, onProgress, signal, verify) {
   fs.mkdirSync(path.dirname(destPath), { recursive: true });
   const tmpPath = destPath + '.part';
 
@@ -95,16 +97,63 @@ async function downloadFile(url, destPath, onProgress, signal) {
   }
 
   if (total && received !== total) {
-    try {
-      fs.unlinkSync(tmpPath);
-    } catch {
-      /* déjà supprimé */
-    }
+    discard(tmpPath);
     throw new Error('Téléchargement incomplet (' + received + '/' + total + ' octets)');
+  }
+
+  if (verify) {
+    const problem = verify(tmpPath, received);
+    if (problem) {
+      discard(tmpPath);
+      throw new Error(problem);
+    }
   }
 
   fs.renameSync(tmpPath, destPath);
   return { path: destPath, bytes: received };
+}
+
+function discard(tmpPath) {
+  try {
+    fs.unlinkSync(tmpPath);
+  } catch {
+    /* déjà supprimé */
+  }
+}
+
+/** Entier de tête des fichiers GGML : « ggml » en petit-boutiste. */
+const GGML_MAGIC = 0x67676d6c;
+
+/**
+ * Un HTTP 200 ne garantit pas un modèle : Hugging Face peut renvoyer une page
+ * d'erreur, un miroir peut servir du HTML. On lit l'entête plutôt que de laisser
+ * whisper.cpp échouer plus tard sur un message incompréhensible.
+ * @returns {string|null} le motif du rejet, ou null si le fichier est valide
+ */
+function checkGgmlFile(filePath, expectedBytes) {
+  let fd;
+  try {
+    fd = fs.openSync(filePath, 'r');
+    const head = Buffer.alloc(4);
+    const read = fs.readSync(fd, head, 0, 4, 0);
+    if (read < 4 || head.readUInt32LE(0) !== GGML_MAGIC) {
+      return "Le fichier reçu n'est pas un modèle GGML (téléchargement corrompu ou lien invalide).";
+    }
+  } catch (err) {
+    return 'Fichier illisible après téléchargement : ' + err.message;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+
+  // Un modèle tronqué mais annoncé comme complet reste possible si le serveur
+  // n'a pas envoyé de Content-Length : on recoupe avec la taille du catalogue.
+  if (expectedBytes > 0) {
+    const actual = fs.statSync(filePath).size;
+    if (actual < expectedBytes * 0.5) {
+      return 'Modèle incomplet : ' + actual + ' octets reçus, ' + expectedBytes + ' attendus.';
+    }
+  }
+  return null;
 }
 
 function formatBytes(n) {
@@ -114,4 +163,4 @@ function formatBytes(n) {
   return (n / 1024 ** i).toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
 }
 
-module.exports = { downloadFile, formatBytes };
+module.exports = { downloadFile, formatBytes, checkGgmlFile };

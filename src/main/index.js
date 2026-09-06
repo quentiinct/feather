@@ -22,7 +22,8 @@ const { WhisperEngine } = require('./whisper');
 const { HotkeyManager } = require('./hotkey');
 const { Injector } = require('./injector');
 const { cleanup } = require('./cleanup');
-const { downloadFile } = require('./downloader');
+const { downloadFile, checkGgmlFile } = require('./downloader');
+const { setupUpdater } = require('./updater');
 const { MODELS, modelUrl, findModel } = require('../shared/models');
 
 const IS_DEV = process.argv.includes('--dev');
@@ -54,6 +55,7 @@ let settingsWindow = null;
 let overlayWindow = null;
 let captureWindow = null;
 let tray = null;
+let updater = null;
 
 /** 'idle' | 'armed' | 'recording' | 'processing' */
 let dictationState = 'idle';
@@ -85,6 +87,12 @@ function toCapture(channel, payload) {
   if (captureWindow && !captureWindow.isDestroyed()) {
     captureWindow.webContents.send(channel, payload);
   }
+}
+
+/** Bip court joué par la fenêtre de capture, seule à pouvoir sortir du son. */
+function playCue(kind) {
+  if (!config.get('ui.soundFeedback', true)) return;
+  toCapture('capture:cue', { kind });
 }
 
 function notify(message, kind = 'info') {
@@ -387,6 +395,10 @@ function armDictation() {
 function confirmDictation() {
   if (dictationState !== 'armed' && dictationState !== 'recording') return;
   confirmed = true;
+  // La capture tourne déjà depuis l'armement : le bip ne marque pas le début de
+  // l'enregistrement mais celui de la dictée confirmée, sinon chaque Ctrl+Alt+T
+  // ferait du bruit.
+  playCue('start');
   setState('recording');
 }
 
@@ -396,6 +408,7 @@ function stopDictation() {
     cancelDictation();
     return;
   }
+  playCue('stop');
   setState('processing');
   toCapture('capture:stop', config.all);
 }
@@ -571,9 +584,16 @@ function registerIpcHandlers() {
     const model = findModel(modelId);
     if (!model) throw new Error('modèle inconnu');
     const dest = path.join(MODELS_DIR, model.id + '.bin');
-    await downloadFile(modelUrl(model.id), dest, (p) => {
-      toSettings('download:progress', { id: model.id, percent: p.percent, received: p.received, total: p.total });
-    });
+    await downloadFile(
+      modelUrl(model.id),
+      dest,
+      (p) => {
+        toSettings('download:progress', { id: model.id, percent: p.percent, received: p.received, total: p.total });
+      },
+      undefined,
+      // Le fichier n'est publié que s'il ressemble vraiment à un modèle GGML.
+      (tmpPath) => checkGgmlFile(tmpPath, model.sizeMB * 1048576)
+    );
     return { id: model.id, path: dest };
   });
 
@@ -629,6 +649,11 @@ function registerIpcHandlers() {
   ipcMain.handle('app:openExternal', (_event, url) => {
     if (!/^https:\/\//i.test(url)) throw new Error('URL non autorisée');
     return shell.openExternal(url);
+  });
+
+  ipcMain.handle('app:checkUpdates', async () => {
+    if (!updater) return { status: 'indisponible', error: 'module absent' };
+    return updater.check();
   });
 
   ipcMain.handle('app:setLaunchAtLogin', (_event, enabled) => {
@@ -744,6 +769,8 @@ if (!gotLock) {
       // que de faire attendre l'utilisateur sur sa première dictée.
       const port = await whisper.ensureServer(config.get('whisper'));
       log(port ? 'modèle préchargé, serveur sur le port ' + port : 'repli sur le CLI');
+      // Sans ça, un lancement suivi d'aucune dictée garderait le modèle en VRAM.
+      whisper.scheduleIdleUnload(config.get('whisper'));
     });
 
     config.on('changed', (next, _prev, patch) => {
@@ -754,7 +781,10 @@ if (!gotLock) {
       // Changer de modèle, de GPU ou de threads impose de relancer le serveur.
       // On le fait tout de suite, pour ne pas pénaliser la dictée suivante.
       if (patch.whisper && ('model' in patch.whisper || 'useGpu' in patch.whisper || 'threads' in patch.whisper)) {
-        whisper.ensureServer(config.get('whisper')).catch((err) => log('serveur :', err.message));
+        whisper
+          .ensureServer(config.get('whisper'))
+          .then(() => whisper.scheduleIdleUnload(config.get('whisper')))
+          .catch((err) => log('serveur :', err.message));
       }
       toSettings('config:changed', next);
     });
@@ -762,6 +792,13 @@ if (!gotLock) {
     const startMinimized =
       process.argv.includes('--minimized') || config.get('ui.startMinimized', false);
     if (!startMinimized) createSettingsWindow();
+
+    // Après le reste : une vérification réseau ne doit retarder ni le
+    // raccourci ni le préchargement du modèle.
+    updater = setupUpdater({
+      log,
+      onState: (next) => toSettings('update:state', next)
+    });
 
     log('prêt. Raccourci :', hotkey.describe());
   });

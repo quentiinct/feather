@@ -47,6 +47,59 @@ const LEGIT_DOUBLES = new Set([
   'no', 'yes', 'very', 'nous', 'vous'
 ]);
 
+/**
+ * Marqueur interne pour les sauts de ligne. Il traverse tout le pipeline sans
+ * dommage — ce n'est ni une lettre, ni un blanc, ni une ponctuation — là où un
+ * vrai « \n » serait écrasé par la normalisation des espaces de fixSpacing().
+ */
+const BREAK = '\u0001';
+
+/**
+ * Commandes de mise en forme dictées à voix haute. Whisper les transcrit comme
+ * du texte ordinaire ; on les remplace par un marqueur.
+ *
+ * La ponctuation collée à la commande part avec elle : « bonjour, à la ligne
+ * merci » ne doit pas laisser de virgule en fin de ligne. Un point qui PRÉCÈDE
+ * la commande est en revanche conservé — il termine la phrase précédente.
+ */
+// `\b` est inutilisable ici : il se fonde sur [A-Za-z0-9_], donc il n'y a aucune
+// frontière de mot devant « à ». D'où les gardes explicites sur les lettres.
+const NOT_WORD_BEFORE = '(?<![\\p{L}\\p{N}])';
+const NOT_WORD_AFTER = '(?![\\p{L}\\p{N}])';
+// « à la ligne 3 du fichier » parle d'un numéro de ligne, pas d'un saut.
+const NOT_A_NUMBER = '(?![ \\t]*\\d)';
+
+/** Le point dicté juste avant la commande a déjà été écrit par Whisper : on l'absorbe. */
+const RE_POINT_LINE = new RegExp(
+  '[ \\t]*\\.?[ \\t]*' + NOT_WORD_BEFORE + 'points?\\s+(?:à|a)\\s+la\\s+ligne' +
+    NOT_WORD_AFTER + NOT_A_NUMBER + '[ \\t]*[,.]?',
+  'giu'
+);
+const RE_PARAGRAPH = new RegExp(
+  '[ \\t]*[,;]?[ \\t]*' + NOT_WORD_BEFORE + '(?:nouveau\\s+paragraphe|nouvelle\\s+ligne)' +
+    NOT_WORD_AFTER + NOT_A_NUMBER + '[ \\t]*[,.]?',
+  'giu'
+);
+const RE_LINE = new RegExp(
+  '[ \\t]*[,;]?[ \\t]*' + NOT_WORD_BEFORE + '(?:(?:retour|aller)\\s+)?(?:à|a)\\s+la\\s+ligne' +
+    NOT_WORD_AFTER + NOT_A_NUMBER + '[ \\t]*[,.]?',
+  'giu'
+);
+
+function applyLineBreaks(text) {
+  return text
+    .replace(RE_POINT_LINE, '.' + BREAK)
+    .replace(RE_PARAGRAPH, BREAK + BREAK)
+    .replace(RE_LINE, BREAK);
+}
+
+/** Repasse les marqueurs en vrais sauts de ligne, sans espace résiduel autour. */
+function restoreLineBreaks(text) {
+  return text
+    .replace(new RegExp('[^\\S\\n]*' + BREAK + '[^\\S\\n]*', 'g'), '\n')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
 /** « le le chat » devient « le chat ». */
 function dedupeWords(text) {
   // Les groupes de mots sont traités avant les mots isolés, du plus long au plus
@@ -84,9 +137,11 @@ function fixSpacing(text) {
 /** Espace insécable avant la ponctuation double, à la française. */
 function frenchTypography(text) {
   return text
-    .replace(/\s*([;:!?])/g, NBSP + '$1')
-    .replace(/«\s*/g, '«' + NBSP)
-    .replace(/\s*»/g, NBSP + '»')
+    // `[^\S\n]` plutôt que `\s` : un saut de ligne dicté ne doit pas être avalé
+    // par l'espace insécable qui précède la ponctuation double.
+    .replace(/[^\S\n]*([;:!?])/g, NBSP + '$1')
+    .replace(/«[^\S\n]*/g, '«' + NBSP)
+    .replace(/[^\S\n]*»/g, NBSP + '»')
     // Une heure (14:30) ou une URL ne prend pas d'espace avant les deux-points
     .replace(new RegExp('(\\d)' + NBSP + ':(?=\\d)', 'g'), '$1:')
     .replace(new RegExp('(https?)' + NBSP + ':', 'gi'), '$1:');
@@ -129,6 +184,10 @@ function cleanWithRules(rawText, rules = {}, dictionary = []) {
   if (!compact) return '';
   if (HALLUCINATIONS.some((re) => re.test(compact))) return '';
 
+  // Posé avant tout le reste : les commandes doivent partir avant que la
+  // ponctuation qui les entoure ne soit réarrangée.
+  if (rules.lineBreakCommands !== false) text = applyLineBreaks(text);
+
   if (rules.removeFillers !== false) {
     text = text.replace(RE_FILLERS, '$1');
     // Nettoie la ponctuation devenue orpheline après la suppression
@@ -136,6 +195,11 @@ function cleanWithRules(rawText, rules = {}, dictionary = []) {
   }
   if (rules.dedupeWords !== false) text = dedupeWords(text);
   if (rules.fixSpacing !== false) text = fixSpacing(text);
+
+  // Rétabli avant la capitalisation : celle-ci traite « \n » comme un début
+  // de phrase, ce qu'un marqueur ne lui dirait pas.
+  text = restoreLineBreaks(text);
+
   if (rules.capitalizeSentences !== false) text = capitalizeSentences(text);
   if (rules.frenchTypography) text = frenchTypography(text);
   if (rules.trimTrailingPeriod) text = text.replace(/\s*\.\s*$/, '');

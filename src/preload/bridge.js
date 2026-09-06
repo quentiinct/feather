@@ -29,6 +29,7 @@ const INVOKE_CHANNELS = new Set([
   'app:info',
   'app:openPath',
   'app:openExternal',
+  'app:checkUpdates',
   'app:setLaunchAtLogin',
   'window:minimize',
   'window:close',
@@ -55,6 +56,7 @@ const RECEIVE_CHANNELS = new Set([
   'capture:start',
   'capture:stop',
   'capture:cancel',
+  'capture:cue',
   'capture:reinit',
   'state',
   'level',
@@ -62,6 +64,7 @@ const RECEIVE_CHANNELS = new Set([
   'stats:changed',
   'toast',
   'download:progress',
+  'update:state',
   'transcript'
 ]);
 

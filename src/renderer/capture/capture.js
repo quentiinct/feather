@@ -229,6 +229,48 @@ function cancelRecording() {
   api.send('capture:cancelled', {});
 }
 
+/* ------------------------------------------------------------------ *
+ * Retour sonore
+ * ------------------------------------------------------------------ */
+
+/**
+ * Contexte dédié aux bips : celui de la capture tourne à la fréquence du micro
+ * et sert à l'entrée. On synthétise les sons plutôt que d'embarquer des fichiers
+ * — rien à empaqueter, et le déclenchement ne dépend d'aucun chargement.
+ */
+let cueContext = null;
+
+function playCue(kind) {
+  try {
+    if (!cueContext) cueContext = new AudioContext();
+    if (cueContext.state === 'suspended') cueContext.resume();
+
+    const now = cueContext.currentTime;
+    const osc = cueContext.createOscillator();
+    const gain = cueContext.createGain();
+
+    // Montant au démarrage, descendant à l'arrêt : les deux se distinguent
+    // sans avoir à les apprendre.
+    const [from, to] = kind === 'stop' ? [880, 590] : [620, 950];
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(from, now);
+    osc.frequency.exponentialRampToValueAtTime(to, now + 0.08);
+
+    // Enveloppe douce : un créneau brut claque désagréablement dans un casque.
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.12, now + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+
+    osc.connect(gain).connect(cueContext.destination);
+    osc.start(now);
+    osc.stop(now + 0.14);
+  } catch (err) {
+    log('bip impossible :', err.message);
+  }
+}
+
+api.on('capture:cue', (payload) => playCue(payload && payload.kind));
+
 api.on('capture:start', (settings) => startRecording(settings));
 api.on('capture:stop', (settings) => stopRecording(settings));
 api.on('capture:cancel', () => cancelRecording());

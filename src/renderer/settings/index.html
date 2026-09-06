@@ -394,6 +394,18 @@
             </div>
             <div class="row">
               <div class="row-text">
+                <span class="row-title">Retour sonore</span>
+                <small>Un bip court au démarrage de la dictée, un autre à l'arrêt.</small>
+              </div>
+              <div class="row-control">
+                <label class="switch"
+                  ><input type="checkbox" id="sound-feedback" /><span class="track"></span
+                  ><span class="thumb"></span
+                ></label>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
                 <span class="row-title">Lancer au démarrage de Windows</span>
                 <small>Feather démarre réduit dans la zone de notification.</small>
               </div>
@@ -453,6 +465,15 @@
           <div class="card">
             <h2>À propos</h2>
             <p class="card-sub" id="about-text"></p>
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Mises à jour</span>
+                <small id="update-status">Vérifiées automatiquement au démarrage.</small>
+              </div>
+              <div class="row-control">
+                <button class="btn small" id="check-updates">Vérifier</button>
+              </div>
+            </div>
             <button class="btn small" id="open-repo">Voir le dépôt</button>
           </div>
         </section>

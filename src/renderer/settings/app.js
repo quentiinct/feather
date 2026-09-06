@@ -705,6 +705,7 @@ bindSegmented('#theme', async (value) => {
 });
 
 $('#show-overlay').addEventListener('change', (e) => patch({ ui: { showOverlay: e.target.checked } }));
+$('#sound-feedback').addEventListener('change', (e) => patch({ ui: { soundFeedback: e.target.checked } }));
 $('#overlay-position').addEventListener('change', (e) =>
   patch({ ui: { overlayPosition: e.target.value } })
 );
@@ -738,6 +739,42 @@ $('#btn-minimize').addEventListener('click', () => api.invoke('window:minimize')
 $('#btn-close').addEventListener('click', () => api.invoke('window:close'));
 
 /* ------------------------------------------------------------------ *
+ * Mises à jour
+ * ------------------------------------------------------------------ */
+
+const UPDATE_LABEL = {
+  développement: 'Désactivées : Feather tourne depuis les sources.',
+  vérification: 'Vérification en cours…',
+  'à jour': 'Feather est à jour.',
+  téléchargement: 'Téléchargement de la nouvelle version…',
+  prête: "Prête. Elle s'installera à la fermeture de Feather.",
+  échec: 'Vérification impossible.',
+  indisponible: 'Indisponible.'
+};
+
+function renderUpdate(s) {
+  if (!s) return;
+  const base = UPDATE_LABEL[s.status] || s.status;
+  const version = s.version ? ' (' + s.version + ')' : '';
+  const why = s.status === 'échec' && s.error ? ' ' + s.error : '';
+  $('#update-status').textContent = base + version + why;
+}
+
+api.on('update:state', renderUpdate);
+
+$('#check-updates').addEventListener('click', async (event) => {
+  event.target.disabled = true;
+  $('#update-status').textContent = 'Vérification en cours…';
+  try {
+    renderUpdate(await api.invoke('app:checkUpdates'));
+  } catch (err) {
+    $('#update-status').textContent = 'Vérification impossible : ' + err.message;
+  } finally {
+    event.target.disabled = false;
+  }
+});
+
+/* ------------------------------------------------------------------ *
  * Rendu global
  * ------------------------------------------------------------------ */
 
@@ -759,6 +796,7 @@ function renderAll() {
   $('#silence-value').textContent = Number(config.audio.silenceThreshold).toFixed(3);
 
   $('#show-overlay').checked = config.ui.showOverlay;
+  $('#sound-feedback').checked = config.ui.soundFeedback;
   $('#overlay-position').value = config.ui.overlayPosition;
   $('#launch-at-login').checked = config.ui.launchAtLogin;
   $('#history-enabled').checked = config.history.enabled;

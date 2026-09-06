@@ -13,10 +13,12 @@
     "setup": "node scripts/setup-whisper.js",
     "postinstall": "node scripts/make-icons.js",
     "build": "electron-builder --win --publish never",
+    "release": "electron-builder --win --publish always",
     "pack": "electron-builder --dir",
     "icons": "node scripts/make-icons.js"
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "extract-zip": "^2.0.1",
     "uiohook-napi": "^1.5.5"
   },
@@ -67,6 +69,13 @@
     "asarUnpack": [
       "resources/inject.ps1"
     ],
-    "npmRebuild": false
+    "npmRebuild": false,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "quentiinct",
+        "repo": "feather"
+      }
+    ]
   }
 }
