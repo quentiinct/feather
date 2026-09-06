@@ -5,12 +5,10 @@ const { EventEmitter } = require('events');
 /**
  * Détection du raccourci global.
  *
- * Deux modes :
- *  - `modifiers` : une combinaison de modificateurs seuls (Ctrl+Shift). Electron
- *    ne sait pas enregistrer ça, on passe donc par un hook clavier bas niveau.
- *  - `combo` : un accélérateur classique, via `globalShortcut` d'Electron.
+ * Le raccourci est une combinaison de modificateurs seuls (Ctrl+Shift, Ctrl+Alt...).
+ * Electron ne sait pas enregistrer ça, on passe donc par un hook clavier bas niveau.
  *
- * Le mode `modifiers` doit cohabiter avec les vrais raccourcis du système
+ * Il doit cohabiter avec les vrais raccourcis du système
  * (Ctrl+Shift+T, Ctrl+Shift+Échap...). La stratégie : dès que la combinaison est
  * complète on « arme » la capture (le micro démarre, sans rien afficher) ; si une
  * touche non-modificatrice arrive dans la foulée, c'était un raccourci de
@@ -34,8 +32,6 @@ class HotkeyManager extends EventEmitter {
     this.hook = null;
     this.keys = null;
     this.hookRunning = false;
-    this.globalShortcut = null;
-    this.registeredAccelerator = null;
 
     this.held = new Set();
     this.comboComplete = false;
@@ -92,33 +88,8 @@ class HotkeyManager extends EventEmitter {
     this.config = config;
     this.stop();
 
-    if (config.mode === 'combo') {
-      this._startCombo(config.accelerator);
-    } else {
-      this._startModifiers();
-    }
+    this._startModifiers();
     this.enabled = true;
-  }
-
-  _startCombo(accelerator) {
-    try {
-      const { globalShortcut } = require('electron');
-      this.globalShortcut = globalShortcut;
-      const ok = globalShortcut.register(accelerator, () => {
-        if (this.recording) this._emitStop();
-        else {
-          this.emit('arm');
-          this._emitStart();
-        }
-      });
-      if (!ok) {
-        this.emit('error', new Error('Raccourci « ' + accelerator + ' » déjà pris par une autre application.'));
-        return;
-      }
-      this.registeredAccelerator = accelerator;
-    } catch (err) {
-      this.emit('error', err);
-    }
   }
 
   _startModifiers() {
@@ -275,22 +246,11 @@ class HotkeyManager extends EventEmitter {
       }
       this.hookRunning = false;
     }
-    if (this.globalShortcut && this.registeredAccelerator) {
-      try {
-        this.globalShortcut.unregister(this.registeredAccelerator);
-      } catch {
-        /* déjà libéré */
-      }
-      this.registeredAccelerator = null;
-    }
   }
 
   /** Libellé lisible du raccourci courant, pour l'interface et le tray. */
   describe() {
     if (!this.config) return '—';
-    if (this.config.mode === 'combo') {
-      return this.config.accelerator.replace(/Control/g, 'Ctrl').replace(/\+/g, ' + ');
-    }
     const labels = { ctrl: 'Ctrl', shift: 'Maj', alt: 'Alt', meta: 'Win' };
     return (this.config.modifiers || []).map((m) => labels[m] || m).join(' + ');
   }

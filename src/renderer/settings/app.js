@@ -85,7 +85,7 @@ function showPanel(name) {
   if (name === 'transcription') refreshEngine();
 }
 
-const PANELS = ['dashboard', 'hotkey', 'transcription', 'cleanup', 'output', 'audio', 'general'];
+const PANELS = ['dashboard', 'hotkey', 'transcription', 'audio', 'general'];
 
 $$('.nav-item').forEach((btn) => {
   btn.addEventListener('click', () => {
@@ -151,7 +151,33 @@ function niceMax(value) {
   return 10 * magnitude;
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function svgEl(tag, attrs, text) {
+  const node = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+/** 'bar' | 'line' | 'table' — le tableau reste une vue à part entière. */
+function chartMode() {
+  const mode = config?.ui?.chartType;
+  return mode === 'line' || mode === 'table' ? mode : 'bar';
+}
+
 function renderChart(series) {
+  const mode = chartMode();
+
+  // Le tableau est toujours construit : il sert aussi de contenu accessible.
+  renderTable(series);
+  $('#table-wrap').hidden = mode !== 'table';
+  // `hidden` est une propriété de HTMLElement : sur un SVG il faut passer par
+  // l'attribut, sinon la zone de tracé continue d'occuper ses 168 px.
+  chartEl.toggleAttribute('hidden', mode === 'table');
+  tooltipEl.classList.remove('visible');
+  if (mode === 'table') return;
+
   const rect = chartEl.getBoundingClientRect();
   const width = Math.max(320, rect.width || 640);
   const height = 168;
@@ -161,28 +187,21 @@ function renderChart(series) {
 
   const max = niceMax(Math.max(...series.map((d) => d.words), 0));
   const band = plotW / series.length;
-  const barW = Math.min(24, Math.max(3, band - 2)); // 2px de surface entre voisins
+  const centerOf = (i) => pad.left + i * band + band / 2;
+  const yOf = (words) => pad.top + plotH - (max > 0 ? (words / max) * plotH : 0);
 
-  const svgNS = 'http://www.w3.org/2000/svg';
   chartEl.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
   chartEl.setAttribute('preserveAspectRatio', 'none');
   chartEl.textContent = '';
-
-  const make = (tag, attrs, text) => {
-    const node = document.createElementNS(svgNS, tag);
-    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
-    if (text !== undefined) node.textContent = text;
-    return node;
-  };
 
   // Grille et graduations : discrètes, elles portent les valeurs non étiquetées
   for (const frac of [0, 0.5, 1]) {
     const y = pad.top + plotH * (1 - frac);
     chartEl.appendChild(
-      make('line', { class: 'grid-line', x1: pad.left, x2: width - pad.right, y1: y, y2: y })
+      svgEl('line', { class: 'grid-line', x1: pad.left, x2: width - pad.right, y1: y, y2: y })
     );
     chartEl.appendChild(
-      make(
+      svgEl(
         'text',
         { class: 'axis-text', x: pad.left - 7, y: y + 3.5, 'text-anchor': 'end' },
         nf.format(Math.round(max * frac))
@@ -190,29 +209,14 @@ function renderChart(series) {
     );
   }
 
+  const marks =
+    mode === 'line'
+      ? drawLine(series, { centerOf, yOf, top: pad.top })
+      : drawBars(series, { pad, plotH, band, yOf });
+
+  // Cibles de survol : pleine hauteur, plus larges que la marque
   series.forEach((day, i) => {
-    const x = pad.left + i * band + (band - barW) / 2;
-    const h = max > 0 ? (day.words / max) * plotH : 0;
-    const y = pad.top + plotH - h;
-
-    if (day.words > 0) {
-      chartEl.appendChild(make('path', { class: 'bar', d: barPath(x, y, barW, Math.max(2, h)) }));
-    } else {
-      // Talon d'un jour sans dictée : l'axe temporel reste continu
-      chartEl.appendChild(
-        make('rect', {
-          class: 'bar empty',
-          x,
-          y: pad.top + plotH - 2,
-          width: barW,
-          height: 2,
-          rx: 1
-        })
-      );
-    }
-
-    // Cible de survol pleine hauteur : plus large que la barre, comme recommandé
-    const hit = make('rect', {
+    const hit = svgEl('rect', {
       class: 'bar-hit',
       x: pad.left + i * band,
       y: pad.top,
@@ -220,43 +224,117 @@ function renderChart(series) {
       height: plotH
     });
     hit.addEventListener('mouseenter', () => {
-      tooltipEl.innerHTML =
-        '<div class="tt-value">' +
-        nf.format(day.words) +
-        (day.words > 1 ? ' mots' : ' mot') +
-        '</div><div class="tt-date">' +
-        formatDate(day.date) +
-        (day.sessions ? ' · ' + day.sessions + (day.sessions > 1 ? ' dictées' : ' dictée') : '') +
-        '</div>';
-      const cardRect = chartEl.parentElement.getBoundingClientRect();
-      const svgRect = chartEl.getBoundingClientRect();
-      const scale = svgRect.width / width;
-      tooltipEl.style.left = svgRect.left - cardRect.left + (pad.left + i * band + band / 2) * scale + 'px';
-      tooltipEl.style.top = svgRect.top - cardRect.top + (day.words > 0 ? y : pad.top + plotH) - 8 + 'px';
-      tooltipEl.classList.add('visible');
+      showChartTooltip(day, centerOf(i), yOf(day.words), width);
+      marks.highlight(i);
     });
-    hit.addEventListener('mouseleave', () => tooltipEl.classList.remove('visible'));
+    hit.addEventListener('mouseleave', () => {
+      tooltipEl.classList.remove('visible');
+      marks.clear();
+    });
     chartEl.appendChild(hit);
   });
 
-  // Étiquettes d'axe : premier, milieu, dernier — jamais une par barre
+  // Étiquettes d'axe : premier, milieu, dernier — jamais une par point
   [0, Math.floor(series.length / 2), series.length - 1].forEach((i, idx) => {
     const anchor = idx === 0 ? 'start' : idx === 2 ? 'end' : 'middle';
     chartEl.appendChild(
-      make(
+      svgEl(
         'text',
-        {
-          class: 'axis-text',
-          x: pad.left + i * band + band / 2,
-          y: height - 5,
-          'text-anchor': anchor
-        },
+        { class: 'axis-text', x: centerOf(i), y: height - 5, 'text-anchor': anchor },
         formatDate(series[i].date)
       )
     );
   });
+}
 
-  renderTable(series);
+function drawBars(series, { pad, plotH, band, yOf }) {
+  const barW = Math.min(24, Math.max(3, band - 2)); // 2px de surface entre voisins
+  const bars = series.map((day, i) => {
+    const x = pad.left + i * band + (band - barW) / 2;
+    const y = yOf(day.words);
+    if (day.words > 0) {
+      const bar = svgEl('path', { class: 'bar', d: barPath(x, y, barW, Math.max(2, plotH - (y - pad.top))) });
+      chartEl.appendChild(bar);
+      return bar;
+    }
+    // Talon d'un jour sans dictée : l'axe temporel reste continu
+    const stub = svgEl('rect', {
+      class: 'bar empty',
+      x,
+      y: pad.top + plotH - 2,
+      width: barW,
+      height: 2,
+      rx: 1
+    });
+    chartEl.appendChild(stub);
+    return stub;
+  });
+
+  let active = null;
+  return {
+    highlight(i) {
+      if (active) active.classList.remove('active');
+      active = bars[i];
+      active.classList.add('active');
+    },
+    clear() {
+      if (active) active.classList.remove('active');
+      active = null;
+    }
+  };
+}
+
+function drawLine(series, { centerOf, yOf, top }) {
+  const points = series.map((day, i) => centerOf(i) + ',' + yOf(day.words));
+  chartEl.appendChild(
+    svgEl('path', {
+      class: 'line',
+      d: 'M' + points.join('L'),
+      'vector-effect': 'non-scaling-stroke'
+    })
+  );
+
+  // Repère de survol : trait vertical + point cerclé de la couleur de la carte
+  const crosshair = svgEl('line', { class: 'crosshair', x1: 0, x2: 0, y1: 0, y2: 0, opacity: 0 });
+  const dot = svgEl('circle', { class: 'dot', cx: 0, cy: 0, r: 4.5, opacity: 0 });
+  chartEl.appendChild(crosshair);
+  chartEl.appendChild(dot);
+
+  return {
+    highlight(i) {
+      const x = centerOf(i);
+      const y = yOf(series[i].words);
+      crosshair.setAttribute('x1', x);
+      crosshair.setAttribute('x2', x);
+      crosshair.setAttribute('y1', top);
+      crosshair.setAttribute('y2', yOf(0));
+      crosshair.setAttribute('opacity', 1);
+      dot.setAttribute('cx', x);
+      dot.setAttribute('cy', y);
+      dot.setAttribute('opacity', 1);
+    },
+    clear() {
+      crosshair.setAttribute('opacity', 0);
+      dot.setAttribute('opacity', 0);
+    }
+  };
+}
+
+function showChartTooltip(day, x, y, width) {
+  tooltipEl.innerHTML =
+    '<div class="tt-value">' +
+    nf.format(day.words) +
+    (day.words > 1 ? ' mots' : ' mot') +
+    '</div><div class="tt-date">' +
+    formatDate(day.date) +
+    (day.sessions ? ' · ' + day.sessions + (day.sessions > 1 ? ' dictées' : ' dictée') : '') +
+    '</div>';
+  const cardRect = chartEl.parentElement.getBoundingClientRect();
+  const svgRect = chartEl.getBoundingClientRect();
+  const scale = svgRect.width / width;
+  tooltipEl.style.left = svgRect.left - cardRect.left + x * scale + 'px';
+  tooltipEl.style.top = svgRect.top - cardRect.top + y - 8 + 'px';
+  tooltipEl.classList.add('visible');
 }
 
 /** Vue tabulaire : aucune valeur n'est réservée au survol. */
@@ -287,13 +365,9 @@ function renderTable(series) {
     '</tbody></table>';
 }
 
-$('#toggle-table').addEventListener('click', (event) => {
-  const wrap = $('#table-wrap');
-  wrap.hidden = !wrap.hidden;
-  event.target.setAttribute('aria-expanded', String(!wrap.hidden));
-  event.target.textContent = wrap.hidden
-    ? 'Afficher les valeurs sous forme de tableau'
-    : 'Masquer le tableau';
+bindSegmented('#chart-type', async (value) => {
+  await patch({ ui: { chartType: value } });
+  if (summary) renderChart(summary.series);
 });
 
 let resizeTimer = null;
@@ -335,45 +409,7 @@ async function refreshStats() {
     summary.streak > 1 ? 'jours consécutifs' : summary.streak === 1 ? 'commencée aujourd\'hui' : 'aucune série';
 
   renderChart(summary.series);
-  renderHistory(await api.invoke('stats:history', 25));
 }
-
-function renderHistory(entries) {
-  const list = $('#history-list');
-  if (!entries.length) {
-    list.innerHTML = '<div class="empty-state">Aucune dictée pour le moment.</div>';
-    return;
-  }
-  list.innerHTML = entries
-    .map((e) => {
-      const when = new Date(e.at).toLocaleString('fr-FR', {
-        day: 'numeric',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-      const text = e.text.length > 220 ? e.text.slice(0, 220) + '…' : e.text;
-      const escaped = text.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
-      return (
-        '<div class="history-item"><div class="history-text">' +
-        escaped +
-        '</div><div class="history-meta">' +
-        when +
-        '<br>' +
-        e.words +
-        ' mots · ' +
-        e.audioSec +
-        ' s</div></div>'
-      );
-    })
-    .join('');
-}
-
-$('#clear-history').addEventListener('click', async () => {
-  await api.invoke('stats:clearHistory');
-  renderHistory([]);
-  toast('Historique effacé.', 'success');
-});
 
 /* ------------------------------------------------------------------ *
  * Moteur & modèles
@@ -386,25 +422,16 @@ async function refreshEngine() {
   const label = $('#engine-status');
   dot.className = 'status-dot';
 
+  // L'état du moteur ne vit plus que dans le pied de la barre latérale.
   if (!engine.installed) {
     dot.classList.add('err');
     label.textContent = 'Moteur non installé';
-    $('#engine-detail').textContent =
-      'whisper.cpp est absent. Lancez « npm run setup » dans le dossier du projet, ou utilisez le bouton ci-dessous.';
   } else if (!engine.models.length) {
     dot.classList.add('warn');
     label.textContent = 'Aucun modèle';
-    $('#engine-detail').textContent =
-      'Binaires installés (build ' + engine.buildKind + '). Il manque un modèle de transcription.';
   } else {
     dot.classList.add('ok');
     label.textContent = 'Prêt · ' + (engine.buildKind === 'cuda' ? 'GPU' : 'CPU');
-    $('#engine-detail').textContent =
-      'Binaires installés — build ' +
-      engine.buildKind +
-      (engine.buildKind === 'cuda'
-        ? ' (accélération NVIDIA disponible).'
-        : ' (calcul sur le processeur).');
   }
 
   $('#gpu-help').textContent =
@@ -486,28 +513,6 @@ api.on('download:progress', (payload) => {
   const row = document.querySelector('.model-row[data-model="' + payload.id + '"]');
   const bar = row ? row.querySelector('.progress > span') : null;
   if (bar) bar.style.width = payload.percent.toFixed(1) + '%';
-
-  if (payload.id === '__binaries__') {
-    const p = $('#binaries-progress');
-    p.hidden = false;
-    p.querySelector('span').style.width = payload.percent.toFixed(1) + '%';
-  }
-});
-
-$('#install-binaries').addEventListener('click', async (event) => {
-  event.target.disabled = true;
-  event.target.textContent = 'Installation…';
-  try {
-    const result = await api.invoke('engine:installBinaries');
-    toast('Binaires installés (build ' + result.buildKind + ').', 'success');
-    await refreshEngine();
-  } catch (err) {
-    toast('Échec : ' + err.message, 'error');
-  } finally {
-    event.target.disabled = false;
-    event.target.textContent = 'Réinstaller les binaires';
-    $('#binaries-progress').hidden = true;
-  }
 });
 
 /* ------------------------------------------------------------------ *
@@ -518,22 +523,14 @@ const MOD_LABELS = { ctrl: 'Ctrl', shift: 'Maj', alt: 'Alt', meta: 'Win' };
 
 function renderHotkey() {
   const h = config.hotkey;
-  setSegmented('#hotkey-mode', h.mode);
   setSegmented('#activation-mode', h.activation);
-  $('#row-modifiers').hidden = h.mode !== 'modifiers';
-  $('#row-combo').hidden = h.mode !== 'combo';
-  $('#accelerator').value = h.accelerator;
   $('#hold-threshold').value = h.holdThresholdMs;
 
   $$('#modifier-picker button').forEach((b) => {
     b.setAttribute('aria-pressed', String(h.modifiers.includes(b.dataset.mod)));
   });
 
-  const keys =
-    h.mode === 'combo'
-      ? h.accelerator.split('+').map((k) => k.replace('Control', 'Ctrl'))
-      : h.modifiers.map((m) => MOD_LABELS[m] || m);
-  $('#kbd-preview').innerHTML = keys.map((k) => '<kbd>' + k + '</kbd>').join(' + ');
+  const keys = h.modifiers.map((m) => MOD_LABELS[m] || m);
 
   $('#activation-help').textContent =
     h.activation === 'hold'
@@ -543,11 +540,6 @@ function renderHotkey() {
   $('#hotkey-dot').className = 'status-dot ok';
   $('#hotkey-status').textContent = keys.join(' + ');
 }
-
-bindSegmented('#hotkey-mode', async (value) => {
-  await patch({ hotkey: { mode: value } });
-  renderHotkey();
-});
 
 bindSegmented('#activation-mode', async (value) => {
   await patch({ hotkey: { activation: value } });
@@ -571,16 +563,9 @@ $('#modifier-picker').addEventListener('click', async (event) => {
   renderHotkey();
 });
 
-$('#accelerator').addEventListener('change', async (event) => {
-  await patch({ hotkey: { accelerator: event.target.value.trim() } });
-  renderHotkey();
-});
-
 $('#hold-threshold').addEventListener('change', async (event) => {
   await patch({ hotkey: { holdThresholdMs: Number(event.target.value) } });
 });
-
-$('#test-dictation').addEventListener('click', () => api.invoke('dictation:toggle'));
 
 /* ------------------------------------------------------------------ *
  * Transcription
@@ -588,76 +573,13 @@ $('#test-dictation').addEventListener('click', () => api.invoke('dictation:toggl
 
 $('#language').addEventListener('change', (e) => patch({ whisper: { language: e.target.value } }));
 $('#use-gpu').addEventListener('change', (e) => patch({ whisper: { useGpu: e.target.checked } }));
-$('#threads').addEventListener('change', (e) => patch({ whisper: { threads: Number(e.target.value) } }));
 $('#initial-prompt').addEventListener('change', (e) =>
   patch({ whisper: { initialPrompt: e.target.value } })
 );
-bindSegmented('#strategy', (value) => patch({ whisper: { strategy: value } }));
 
 /* ------------------------------------------------------------------ *
- * Nettoyage
+ * Dictionnaire — corrections appliquées après le nettoyage par règles
  * ------------------------------------------------------------------ */
-
-const CLEANUP_HELP = {
-  off: 'Le texte de Whisper est inséré tel quel.',
-  rules: 'Traitement local instantané. Aucune dépendance, aucun coût.',
-  llm: 'Un modèle local reformule le texte. Gratuit, mais ajoute environ une seconde.'
-};
-
-function renderCleanup() {
-  const c = config.cleanup;
-  setSegmented('#cleanup-mode', c.mode);
-  $('#cleanup-mode-help').textContent = CLEANUP_HELP[c.mode] || '';
-  $('#rules-card').hidden = c.mode === 'off';
-  $('#llm-card').hidden = c.mode !== 'llm';
-
-  $$('input[data-rule]').forEach((input) => {
-    input.checked = Boolean(c.rules[input.dataset.rule]);
-  });
-
-  $('#llm-model').value = c.llm.model;
-  $('#llm-endpoint').value = c.llm.endpoint;
-  $('#llm-timeout').value = c.llm.timeoutMs;
-
-  renderDictionary();
-  updatePreview();
-}
-
-bindSegmented('#cleanup-mode', async (value) => {
-  await patch({ cleanup: { mode: value } });
-  renderCleanup();
-});
-
-$$('input[data-rule]').forEach((input) => {
-  input.addEventListener('change', async () => {
-    await patch({ cleanup: { rules: { [input.dataset.rule]: input.checked } } });
-    updatePreview();
-  });
-});
-
-$('#llm-model').addEventListener('change', (e) => patch({ cleanup: { llm: { model: e.target.value.trim() } } }));
-$('#llm-endpoint').addEventListener('change', (e) =>
-  patch({ cleanup: { llm: { endpoint: e.target.value.trim() } } })
-);
-$('#llm-timeout').addEventListener('change', (e) =>
-  patch({ cleanup: { llm: { timeoutMs: Number(e.target.value) } } })
-);
-
-$('#probe-ollama').addEventListener('click', async (event) => {
-  event.target.disabled = true;
-  const status = $('#ollama-status');
-  status.textContent = 'Test en cours…';
-  const result = await api.invoke('ollama:probe');
-  if (result.available) {
-    status.textContent = result.models.length
-      ? 'Connecté. Modèles disponibles : ' + result.models.join(', ')
-      : 'Connecté, mais aucun modèle installé. Lancez « ollama pull qwen2.5:3b-instruct ».';
-  } else {
-    status.textContent =
-      'Injoignable (' + result.error + '). Installez Ollama depuis ollama.com, puis lancez « ollama pull qwen2.5:3b-instruct ».';
-  }
-  event.target.disabled = false;
-});
 
 function renderDictionary() {
   const list = $('#dict-list');
@@ -685,7 +607,6 @@ $('#dict-list').addEventListener('change', async (event) => {
     [event.target.dataset.field]: event.target.value
   };
   await patch({ cleanup: { dictionary } });
-  updatePreview();
 });
 
 $('#dict-list').addEventListener('click', async (event) => {
@@ -694,7 +615,6 @@ $('#dict-list').addEventListener('click', async (event) => {
   const dictionary = config.cleanup.dictionary.filter((_, i) => i !== Number(row.dataset.index));
   await patch({ cleanup: { dictionary } });
   renderDictionary();
-  updatePreview();
 });
 
 $('#dict-add').addEventListener('click', async () => {
@@ -702,62 +622,6 @@ $('#dict-add').addEventListener('click', async () => {
   await patch({ cleanup: { dictionary } });
   renderDictionary();
   $('#dict-list .dict-row:last-child input')?.focus();
-});
-
-let previewTimer = null;
-const SAMPLE = 'euh bonjour, je voulais euh vous dire que le le projet est presque fini';
-
-function updatePreview() {
-  clearTimeout(previewTimer);
-  previewTimer = setTimeout(async () => {
-    const raw = $('#preview-input').value.trim() || SAMPLE;
-    const box = $('#preview-output');
-    try {
-      const result = await api.invoke('cleanup:preview', raw);
-      box.textContent = result || '(le nettoyage a considéré ce texte comme du bruit)';
-      box.classList.toggle('muted', !result);
-    } catch (err) {
-      box.textContent = 'Erreur : ' + err.message;
-      box.classList.add('muted');
-    }
-  }, 220);
-}
-
-$('#preview-input').addEventListener('input', updatePreview);
-
-/* ------------------------------------------------------------------ *
- * Sortie
- * ------------------------------------------------------------------ */
-
-const OUTPUT_HELP = {
-  paste: 'Le texte passe par le presse-papiers puis Ctrl+V. Instantané, même sur un long texte.',
-  type: 'Frappe caractère par caractère. Ne touche pas au presse-papiers, mais plus lent.'
-};
-
-function renderOutput() {
-  setSegmented('#output-mode', config.output.mode);
-  $('#output-mode-help').textContent = OUTPUT_HELP[config.output.mode] || '';
-  $('#restore-clipboard').checked = config.output.restoreClipboard;
-  $('#append-space').checked = config.output.appendSpace;
-}
-
-bindSegmented('#output-mode', async (value) => {
-  await patch({ output: { mode: value } });
-  renderOutput();
-});
-
-$('#restore-clipboard').addEventListener('change', (e) =>
-  patch({ output: { restoreClipboard: e.target.checked } })
-);
-$('#append-space').addEventListener('change', (e) => patch({ output: { appendSpace: e.target.checked } }));
-
-$('#test-injection').addEventListener('click', async () => {
-  try {
-    const result = await api.invoke('engine:testInjection');
-    toast('Texte inséré par ' + result.method + '.', 'success');
-  } catch (err) {
-    toast('Échec de l\'injection : ' + err.message, 'error');
-  }
 });
 
 /* ------------------------------------------------------------------ *
@@ -809,6 +673,8 @@ $('#silence-threshold').addEventListener('input', (e) => {
 $('#silence-threshold').addEventListener('change', (e) =>
   patch({ audio: { silenceThreshold: Number(e.target.value) } })
 );
+
+$('#test-dictation').addEventListener('click', () => api.invoke('dictation:toggle'));
 
 api.on('level', (payload) => {
   const meter = $('#mic-meter');
@@ -880,15 +746,13 @@ function renderAll() {
 
   applyTheme(config.ui.theme);
   setSegmented('#theme', config.ui.theme);
+  setSegmented('#chart-type', chartMode());
   renderHotkey();
-  renderCleanup();
-  renderOutput();
+  renderDictionary();
 
   $('#language').value = config.whisper.language;
   $('#use-gpu').checked = config.whisper.useGpu;
-  $('#threads').value = config.whisper.threads;
   $('#initial-prompt').value = config.whisper.initialPrompt;
-  setSegmented('#strategy', config.whisper.strategy);
 
   $('#max-duration').value = config.audio.maxDurationSec;
   $('#silence-threshold').value = config.audio.silenceThreshold;

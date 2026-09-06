@@ -7,13 +7,8 @@
  */
 const DEFAULT_CONFIG = {
   hotkey: {
-    // 'modifiers'  -> combinaison de modificateurs seuls (ex. Ctrl+Shift)
-    // 'combo'      -> raccourci classique enregistré par Electron (ex. Ctrl+Shift+Space)
-    mode: 'modifiers',
-    // Modificateurs pour le mode 'modifiers'. Valeurs: ctrl, shift, alt, meta
+    // Combinaison de modificateurs seuls. Valeurs: ctrl, shift, alt, meta
     modifiers: ['ctrl', 'shift'],
-    // Accélérateur Electron pour le mode 'combo'
-    accelerator: 'Control+Shift+Space',
     // 'toggle' -> une pression démarre, une seconde arrête
     // 'hold'   -> on enregistre tant que la touche est maintenue
     activation: 'toggle',
@@ -85,6 +80,7 @@ const DEFAULT_CONFIG = {
     dictionary: []
   },
 
+  // Ces réglages n'ont plus d'interface : ils se modifient à la main dans config.json.
   output: {
     // 'paste' -> presse-papiers + Ctrl+V (rapide, idéal pour les textes longs)
     // 'type'  -> frappe Unicode caractère par caractère (ne touche pas au presse-papiers)
@@ -101,6 +97,8 @@ const DEFAULT_CONFIG = {
 
   ui: {
     theme: 'system', // 'system' | 'dark' | 'light'
+    // Forme du graphique du tableau de bord : 'bar' | 'line' | 'table'
+    chartType: 'bar',
     accent: '#6366f1',
     showOverlay: true,
     // 'bottom-center' | 'bottom-right' | 'top-center' | 'top-right'

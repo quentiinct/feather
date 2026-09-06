@@ -21,7 +21,7 @@ const { StatsStore, countWords } = require('./stats');
 const { WhisperEngine } = require('./whisper');
 const { HotkeyManager } = require('./hotkey');
 const { Injector } = require('./injector');
-const { cleanup, probeOllama } = require('./cleanup');
+const { cleanup } = require('./cleanup');
 const { downloadFile } = require('./downloader');
 const { MODELS, modelUrl, findModel } = require('../shared/models');
 
@@ -592,15 +592,6 @@ function registerIpcHandlers() {
     await whisper.init();
     return result;
   });
-
-  ipcMain.handle('engine:testInjection', async () => {
-    const phrase = 'Feather fonctionne : ceci a été écrit par le module d\'injection.';
-    return injector.insert(phrase, config.get('output'));
-  });
-
-  ipcMain.handle('ollama:probe', () => probeOllama(config.get('cleanup.llm.endpoint')));
-
-  ipcMain.handle('cleanup:preview', (_event, text) => cleanup(text, config.get('cleanup')));
 
   ipcMain.handle('dictation:toggle', () => {
     toggleDictation();

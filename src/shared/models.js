@@ -8,15 +8,6 @@ const HF_BASE = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main';
  */
 const MODELS = [
   {
-    id: 'ggml-base',
-    label: 'Base',
-    sizeMB: 148,
-    multilingual: true,
-    quality: 2,
-    speed: 5,
-    note: 'Très rapide, qualité correcte pour des phrases simples.'
-  },
-  {
     id: 'ggml-small',
     label: 'Small',
     sizeMB: 488,
@@ -43,15 +34,6 @@ const MODELS = [
     speed: 4,
     recommended: true,
     note: 'Le meilleur rapport qualité/vitesse. Recommandé avec une carte NVIDIA.'
-  },
-  {
-    id: 'ggml-large-v3-turbo',
-    label: 'Large v3 Turbo',
-    sizeMB: 1620,
-    multilingual: true,
-    quality: 5,
-    speed: 3,
-    note: 'Identique au Q5 mais non quantifié : légèrement plus précis, plus lourd.'
   },
   {
     id: 'ggml-large-v3-q5_0',

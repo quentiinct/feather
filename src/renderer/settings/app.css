@@ -586,10 +586,16 @@ input[type='range'] {
 
 .chart-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   margin-bottom: 14px;
   gap: 12px;
+}
+
+.chart-head-text {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
 }
 
 .chart-head h2 {
@@ -630,13 +636,33 @@ input[type='range'] {
   cursor: pointer;
 }
 
-.chart .bar-hit:hover + .bar,
 .chart .bar.active {
   filter: brightness(1.15);
 }
 
 .chart .bar.empty {
   fill: var(--grid);
+}
+
+/* Ligne : 2px, jointures arrondies, jamais de remplissage sous la courbe */
+.chart .line {
+  fill: none;
+  stroke: var(--series);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart .crosshair {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+/* Anneau de 2px à la couleur de la carte : le point reste lisible sur la ligne */
+.chart .dot {
+  fill: var(--series);
+  stroke: var(--surface-raised);
+  stroke-width: 2;
 }
 
 .chart-tooltip {
@@ -669,10 +695,6 @@ input[type='range'] {
 }
 
 /* Vue tabulaire : les valeurs ne sont jamais réservées au survol */
-.table-toggle {
-  margin-top: 12px;
-}
-
 .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -694,40 +716,6 @@ input[type='range'] {
 
 .data-table td.num {
   text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-/* ---------- Historique ---------- */
-
-.history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.history-item {
-  padding: 10px 0;
-  border-top: 1px solid var(--border);
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 12px;
-  align-items: start;
-}
-
-.history-item:first-child {
-  border-top: 0;
-}
-
-.history-text {
-  font-size: 13px;
-  color: var(--ink-secondary);
-  overflow-wrap: anywhere;
-}
-
-.history-meta {
-  font-size: 11.5px;
-  color: var(--ink-muted);
-  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
@@ -881,24 +869,6 @@ input[type='range'] {
 }
 
 /* ---------- Raccourci ---------- */
-
-.kbd-preview {
-  display: inline-flex;
-  gap: 5px;
-  align-items: center;
-}
-
-kbd {
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: var(--surface-sunken);
-  border: 1px solid var(--border-strong);
-  border-bottom-width: 2px;
-  color: var(--ink);
-}
 
 .modifier-picker {
   display: flex;

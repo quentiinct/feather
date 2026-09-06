@@ -46,20 +46,6 @@
           </svg>
           Transcription
         </button>
-        <button class="nav-item" data-panel="cleanup">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M7.2 1.8 8.4 4.6 11.2 5.8 8.4 7 7.2 9.8 6 7 3.2 5.8 6 4.6z" stroke-linejoin="round" />
-            <path d="M11.6 9.4l.7 1.6 1.6.7-1.6.7-.7 1.6-.7-1.6-1.6-.7 1.6-.7z" stroke-linejoin="round" />
-          </svg>
-          Nettoyage
-        </button>
-        <button class="nav-item" data-panel="output">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M2.2 8h9.4M8.4 4.6 12 8l-3.6 3.4" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M13.6 2.4v11.2" stroke-linecap="round" />
-          </svg>
-          Sortie
-        </button>
         <button class="nav-item" data-panel="audio">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
             <path
@@ -139,8 +125,15 @@
 
           <div class="card chart-card">
             <div class="chart-head">
-              <h2>Mots dictés par jour</h2>
-              <span class="chart-sub">30 derniers jours</span>
+              <div class="chart-head-text">
+                <h2>Mots dictés par jour</h2>
+                <span class="chart-sub">30 derniers jours</span>
+              </div>
+              <div class="segmented" id="chart-type">
+                <button data-value="bar">Barres</button>
+                <button data-value="line">Ligne</button>
+                <button data-value="table">Tableau</button>
+              </div>
             </div>
             <svg
               class="chart"
@@ -149,22 +142,7 @@
               aria-label="Nombre de mots dictés chaque jour sur les 30 derniers jours"
             ></svg>
             <div class="chart-tooltip" id="chart-tooltip" role="status"></div>
-            <div class="table-toggle">
-              <button class="link" id="toggle-table" aria-expanded="false">
-                Afficher les valeurs sous forme de tableau
-              </button>
-              <div id="table-wrap" hidden></div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="chart-head">
-              <h2>Dictées récentes</h2>
-              <button class="btn small" id="clear-history">Effacer l'historique</button>
-            </div>
-            <div class="history-list" id="history-list">
-              <div class="empty-state">Aucune dictée pour le moment.</div>
-            </div>
+            <div id="table-wrap" hidden></div>
           </div>
         </section>
 
@@ -173,30 +151,20 @@
           <div class="panel-head">
             <h1>Raccourci</h1>
             <p>
-              Le raccourci par défaut n'utilise que des modificateurs. Il reste compatible avec
+              Le raccourci n'utilise que des modificateurs. Il reste compatible avec
               vos raccourcis habituels&nbsp;: si vous appuyez sur une autre touche dans la foulée
               (Ctrl+Maj+T, par exemple), la dictée est annulée sans rien écrire.
             </p>
           </div>
 
           <div class="card">
-            <div class="row">
-              <div class="row-text">
-                <span class="row-title">Type de raccourci</span>
-                <small>Les modificateurs seuls sont plus rapides à déclencher.</small>
-              </div>
-              <div class="row-control">
-                <div class="segmented" id="hotkey-mode">
-                  <button data-value="modifiers">Modificateurs</button>
-                  <button data-value="combo">Combinaison</button>
-                </div>
-              </div>
-            </div>
-
             <div class="row" id="row-modifiers">
               <div class="row-text">
                 <span class="row-title">Touches</span>
-                <small>Sélectionnez deux modificateurs au minimum.</small>
+                <small
+                  >Deux modificateurs au minimum. Appuyez dessus n'importe où pour lancer une
+                  dictée.</small
+                >
               </div>
               <div class="row-control">
                 <div class="modifier-picker" id="modifier-picker">
@@ -205,16 +173,6 @@
                   <button data-mod="alt">Alt</button>
                   <button data-mod="meta">Win</button>
                 </div>
-              </div>
-            </div>
-
-            <div class="row" id="row-combo" hidden>
-              <div class="row-text">
-                <label for="accelerator">Combinaison</label>
-                <small>Format Electron, par exemple <code>Control+Shift+Space</code>.</small>
-              </div>
-              <div class="row-control">
-                <input type="text" id="accelerator" style="width: 210px" />
               </div>
             </div>
 
@@ -245,24 +203,6 @@
               </div>
             </div>
 
-            <div class="row">
-              <div class="row-text">
-                <span class="row-title">Raccourci actuel</span>
-                <small>Appuyez dessus n'importe où pour lancer une dictée.</small>
-              </div>
-              <div class="row-control">
-                <span class="kbd-preview" id="kbd-preview"></span>
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <h2>Essai</h2>
-            <p class="card-sub">
-              Lance une dictée depuis ici. Le texte sera inséré dans la dernière fenêtre active,
-              alors cliquez d'abord dans un champ de saisie ailleurs.
-            </p>
-            <button class="btn primary" id="test-dictation">Démarrer une dictée</button>
           </div>
         </section>
 
@@ -274,13 +214,6 @@
               Tout est calculé sur votre machine par whisper.cpp. Aucun audio ne quitte
               l'ordinateur.
             </p>
-          </div>
-
-          <div class="card">
-            <h2>Moteur</h2>
-            <p class="card-sub" id="engine-detail">Vérification de l'installation…</p>
-            <button class="btn" id="install-binaries">Réinstaller les binaires</button>
-            <div class="progress" id="binaries-progress" hidden><span></span></div>
           </div>
 
           <div class="card">
@@ -324,19 +257,6 @@
               </div>
             </div>
 
-            <div class="row">
-              <div class="row-text">
-                <span class="row-title">Qualité de décodage</span>
-                <small>Le faisceau est plus précis, le glouton plus rapide.</small>
-              </div>
-              <div class="row-control">
-                <div class="segmented" id="strategy">
-                  <button data-value="beam">Faisceau</button>
-                  <button data-value="greedy">Glouton</button>
-                </div>
-              </div>
-            </div>
-
             <div class="row stacked">
               <div class="row-text">
                 <label for="initial-prompt">Amorce de contexte</label>
@@ -353,159 +273,6 @@
               </div>
             </div>
 
-            <div class="row">
-              <div class="row-text">
-                <label for="threads">Threads CPU</label>
-                <small>0 laisse Feather choisir en fonction de votre processeur.</small>
-              </div>
-              <div class="row-control">
-                <input type="number" id="threads" min="0" max="32" step="1" />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ============ NETTOYAGE ============ -->
-        <section class="panel" id="panel-cleanup" hidden>
-          <div class="panel-head">
-            <h1>Nettoyage</h1>
-            <p>
-              Ce qui sort de Whisper est fidèle, mais oral. Cette étape le rend écrivable&nbsp;:
-              ponctuation, hésitations, répétitions.
-            </p>
-          </div>
-
-          <div class="card">
-            <div class="row">
-              <div class="row-text">
-                <span class="row-title">Mode</span>
-                <small id="cleanup-mode-help"></small>
-              </div>
-              <div class="row-control">
-                <div class="segmented" id="cleanup-mode">
-                  <button data-value="off">Aucun</button>
-                  <button data-value="rules">Règles</button>
-                  <button data-value="llm">LLM local</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="card" id="rules-card">
-            <h2>Règles</h2>
-            <p class="card-sub">Traitement local et instantané, sans dépendance.</p>
-            <div class="row">
-              <div class="row-text">
-                <span class="row-title">Supprimer les hésitations</span>
-                <small>« euh », « hum », « ben »…</small>
-              </div>
-              <div class="row-control">
-                <label class="switch"
-                  ><input type="checkbox" data-rule="removeFillers" /><span class="track"></span
-                  ><span class="thumb"></span
-                ></label>
-              </div>
-            </div>
-            <div class="row">
-              <div class="row-text">
-                <span class="row-title">Supprimer les répétitions</span>
-                <small>« le le projet », « on va on va commencer »</small>
-              </div>
-              <div class="row-control">
-                <label class="switch"
-                  ><input type="checkbox" data-rule="dedupeWords" /><span class="track"></span
-                  ><span class="thumb"></span
-                ></label>
-              </div>
-            </div>
-            <div class="row">
-              <div class="row-text">
-                <span class="row-title">Majuscules en début de phrase</span>
-                <small></small>
-              </div>
-              <div class="row-control">
-                <label class="switch"
-                  ><input type="checkbox" data-rule="capitalizeSentences" /><span
-                    class="track"
-                  ></span
-                  ><span class="thumb"></span
-                ></label>
-              </div>
-            </div>
-            <div class="row">
-              <div class="row-text">
-                <span class="row-title">Typographie française</span>
-                <small>Ajoute une espace insécable devant les deux-points, points-virgules, points d'exclamation et d'interrogation.</small>
-              </div>
-              <div class="row-control">
-                <label class="switch"
-                  ><input type="checkbox" data-rule="frenchTypography" /><span
-                    class="track"
-                  ></span
-                  ><span class="thumb"></span
-                ></label>
-              </div>
-            </div>
-            <div class="row">
-              <div class="row-text">
-                <span class="row-title">Retirer le point final</span>
-                <small>Pratique pour dicter dans une barre de recherche.</small>
-              </div>
-              <div class="row-control">
-                <label class="switch"
-                  ><input type="checkbox" data-rule="trimTrailingPeriod" /><span
-                    class="track"
-                  ></span
-                  ><span class="thumb"></span
-                ></label>
-              </div>
-            </div>
-          </div>
-
-          <div class="card" id="llm-card">
-            <h2>LLM local</h2>
-            <p class="card-sub">
-              Reformulation par un modèle qui tourne sur votre machine via Ollama. Gratuit, hors
-              ligne, et rien n'est envoyé sur Internet. Si Ollama ne répond pas, Feather retombe
-              automatiquement sur les règles.
-            </p>
-            <div class="row">
-              <div class="row-text">
-                <span class="row-title">Statut d'Ollama</span>
-                <small id="ollama-status">Non vérifié.</small>
-              </div>
-              <div class="row-control">
-                <button class="btn small" id="probe-ollama">Tester</button>
-              </div>
-            </div>
-            <div class="row">
-              <div class="row-text">
-                <label for="llm-model">Modèle</label>
-                <small>Un modèle de 3 milliards de paramètres suffit largement ici.</small>
-              </div>
-              <div class="row-control">
-                <input type="text" id="llm-model" style="width: 210px" />
-              </div>
-            </div>
-            <div class="row">
-              <div class="row-text">
-                <label for="llm-endpoint">Adresse</label>
-                <small></small>
-              </div>
-              <div class="row-control">
-                <input type="text" id="llm-endpoint" style="width: 210px" />
-              </div>
-            </div>
-            <div class="row">
-              <div class="row-text">
-                <label for="llm-timeout">Délai maximum</label>
-                <small>Au-delà, on garde le nettoyage par règles pour ne pas vous faire attendre.</small>
-              </div>
-              <div class="row-control">
-                <input type="number" id="llm-timeout" min="1000" max="30000" step="500" />
-                <span class="tile-note">ms</span>
-              </div>
-            </div>
           </div>
 
           <div class="card">
@@ -516,74 +283,6 @@
             </p>
             <div class="dict-list" id="dict-list"></div>
             <button class="btn small" id="dict-add">Ajouter une entrée</button>
-          </div>
-
-          <div class="card">
-            <h2>Aperçu</h2>
-            <p class="card-sub">Tapez une phrase telle que Whisper la produirait.</p>
-            <textarea
-              id="preview-input"
-              placeholder="euh bonjour, je voulais euh vous dire que le le projet est presque fini"
-            ></textarea>
-            <div class="preview-box muted" id="preview-output" style="margin-top: 10px">
-              Le résultat s'affichera ici.
-            </div>
-          </div>
-        </section>
-
-        <!-- ============ SORTIE ============ -->
-        <section class="panel" id="panel-output" hidden>
-          <div class="panel-head">
-            <h1>Sortie</h1>
-            <p>Comment le texte arrive dans l'application où vous écrivez.</p>
-          </div>
-
-          <div class="card">
-            <div class="row">
-              <div class="row-text">
-                <span class="row-title">Méthode</span>
-                <small id="output-mode-help"></small>
-              </div>
-              <div class="row-control">
-                <div class="segmented" id="output-mode">
-                  <button data-value="paste">Collage</button>
-                  <button data-value="type">Frappe</button>
-                </div>
-              </div>
-            </div>
-            <div class="row">
-              <div class="row-text">
-                <span class="row-title">Restaurer le presse-papiers</span>
-                <small>Remet votre contenu précédent juste après le collage.</small>
-              </div>
-              <div class="row-control">
-                <label class="switch"
-                  ><input type="checkbox" id="restore-clipboard" /><span class="track"></span
-                  ><span class="thumb"></span
-                ></label>
-              </div>
-            </div>
-            <div class="row">
-              <div class="row-text">
-                <span class="row-title">Espace final</span>
-                <small>Permet d'enchaîner plusieurs dictées sans coller les mots.</small>
-              </div>
-              <div class="row-control">
-                <label class="switch"
-                  ><input type="checkbox" id="append-space" /><span class="track"></span
-                  ><span class="thumb"></span
-                ></label>
-              </div>
-            </div>
-            <div class="row">
-              <div class="row-text">
-                <span class="row-title">Test d'injection</span>
-                <small>Écrit une phrase dans la fenêtre qui avait le focus avant Feather.</small>
-              </div>
-              <div class="row-control">
-                <button class="btn small" id="test-injection">Tester</button>
-              </div>
-            </div>
           </div>
         </section>
 
@@ -634,6 +333,15 @@
                 <span class="tile-note" id="silence-value"></span>
               </div>
             </div>
+          </div>
+
+          <div class="card">
+            <h2>Essai</h2>
+            <p class="card-sub">
+              Lance une dictée depuis ici. Le texte sera inséré dans la dernière fenêtre active,
+              alors cliquez d'abord dans un champ de saisie ailleurs.
+            </p>
+            <button class="btn primary" id="test-dictation">Démarrer une dictée</button>
           </div>
         </section>
 
