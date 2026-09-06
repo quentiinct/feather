@@ -80,6 +80,7 @@ function showPanel(name) {
     else b.removeAttribute('aria-current');
   });
   $('.content').scrollTop = 0;
+  refreshSegmented();
   if (name === 'dashboard') refreshStats();
   if (name === 'audio') loadMicrophones();
   if (name === 'transcription') refreshEngine();
@@ -123,6 +124,47 @@ function setSegmented(selector, value) {
   $$(selector + ' button').forEach((b) => {
     b.setAttribute('aria-pressed', String(b.dataset.value === value));
   });
+  positionThumb($(selector));
+}
+
+/** Le curseur glissant, créé à la demande pour ne pas le répéter dans le HTML. */
+function segmentedThumb(group) {
+  let thumb = group.querySelector('.segmented-thumb');
+  if (!thumb) {
+    thumb = document.createElement('span');
+    thumb.className = 'segmented-thumb';
+    thumb.setAttribute('aria-hidden', 'true');
+    group.prepend(thumb);
+  }
+  return thumb;
+}
+
+function positionThumb(group) {
+  if (!group) return;
+  // Un panneau masqué mesure zéro. Placer le curseur maintenant l'écraserait,
+  // et il se déplierait depuis le coin gauche à l'ouverture de la section :
+  // mieux vaut le laisser où il est et attendre que le groupe soit visible.
+  if (!group.offsetWidth) return;
+
+  const thumb = segmentedThumb(group);
+  const active = group.querySelector('button[aria-pressed="true"]');
+  if (!active) {
+    thumb.hidden = true;
+    return;
+  }
+  thumb.hidden = false;
+  thumb.style.width = active.offsetWidth + 'px';
+  thumb.style.height = active.offsetHeight + 'px';
+  thumb.style.transform = 'translate(' + active.offsetLeft + 'px, ' + active.offsetTop + 'px)';
+
+  if (!group.classList.contains('is-armed')) {
+    requestAnimationFrame(() => group.classList.add('is-armed'));
+  }
+}
+
+/** Après un changement de section ou de taille : les groupes redeviennent mesurables. */
+function refreshSegmented() {
+  $$('.segmented').forEach(positionThumb);
 }
 
 /* ------------------------------------------------------------------ *
@@ -381,6 +423,7 @@ window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
     if (summary) renderChart(summary.series);
+    refreshSegmented();
   }, 120);
 });
 
