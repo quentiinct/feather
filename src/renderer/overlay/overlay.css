@@ -1,11 +1,13 @@
+/* La pastille flotte au-dessus de n'importe quelle application : elle reste
+   sombre dans les deux thèmes, sur Obsidian Ink et son encre Coconut White. */
 :root {
-  --bg: rgba(18, 18, 23, 0.92);
-  --border: rgba(255, 255, 255, 0.1);
-  --text: #f4f4f5;
-  --muted: #a1a1aa;
-  --accent: #6366f1;
-  --danger: #f43f5e;
-  --success: #22c55e;
+  --bg: rgba(21, 19, 17, 0.92);
+  --border: rgba(242, 241, 234, 0.12);
+  --text: #f2f1ea;
+  --muted: #a49d92;
+  --accent: #c97085;
+  --danger: #fb7185;
+  --success: #4ade80;
 }
 
 * {
@@ -44,7 +46,7 @@ body {
   border: 1px solid var(--border);
   box-shadow:
     0 8px 28px rgba(0, 0, 0, 0.45),
-    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+    0 1px 0 rgba(242, 241, 234, 0.07) inset;
   backdrop-filter: blur(18px) saturate(150%);
   opacity: 0;
   transform: translateY(10px) scale(0.96);
@@ -62,7 +64,7 @@ body.visible .pill {
 }
 
 .pill:hover {
-  border-color: rgba(255, 255, 255, 0.18);
+  border-color: rgba(242, 241, 234, 0.2);
 }
 
 /* --- Pastille d'état à gauche --- */
@@ -72,7 +74,7 @@ body.visible .pill {
   border-radius: 50%;
   background: var(--danger);
   flex: 0 0 auto;
-  box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.55);
+  box-shadow: 0 0 0 0 rgba(251, 113, 133, 0.55);
 }
 
 body.state-recording .dot {
@@ -81,13 +83,13 @@ body.state-recording .dot {
 
 @keyframes pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.5);
+    box-shadow: 0 0 0 0 rgba(251, 113, 133, 0.5);
   }
   70% {
-    box-shadow: 0 0 0 9px rgba(244, 63, 94, 0);
+    box-shadow: 0 0 0 9px rgba(251, 113, 133, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(244, 63, 94, 0);
+    box-shadow: 0 0 0 0 rgba(251, 113, 133, 0);
   }
 }
 
@@ -104,7 +106,7 @@ body.state-recording .dot {
   width: 3px;
   height: 4px;
   border-radius: 2px;
-  background: linear-gradient(180deg, #818cf8, var(--accent));
+  background: linear-gradient(180deg, #e6a6b4, var(--accent));
   transition: height 70ms linear;
 }
 
@@ -151,7 +153,7 @@ body.state-done .dot {
 }
 
 body.state-error .dot {
-  background: #f59e0b;
+  background: #fbbf24;
 }
 
 body.state-done .label,
@@ -165,7 +167,7 @@ body:not(.state-recording) .timer {
 
 .hint {
   font-size: 11px;
-  color: rgba(161, 161, 170, 0.65);
+  color: rgba(164, 157, 146, 0.72);
   border-left: 1px solid var(--border);
   padding-left: 10px;
   margin-left: 2px;
