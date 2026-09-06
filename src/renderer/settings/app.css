@@ -257,13 +257,15 @@ body {
   opacity: 1;
 }
 
-/* Posée au clic, retirée à la fin de l'animation : sans ça, revenir sur une
-   section déjà visitée ne rejouerait rien. */
-.nav-item.bounce {
-  animation: nav-bounce 340ms cubic-bezier(0.34, 1,2, 0.64, 1);
+/* Posée au clic, retirée à la fin de l'animation : sans ça, recliquer le même
+   élément ne rejouerait rien. Un seul réglage pour la barre latérale et pour
+   les touches du raccourci. */
+.nav-item.bounce,
+.modifier-picker button.bounce {
+  animation: bounce 340ms cubic-bezier(0.34, 1.2, 0.64, 1);
 }
 
-@keyframes nav-bounce {
+@keyframes bounce {
   0% {
     transform: scale(1);
   }
@@ -281,7 +283,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .nav-item,
   .nav-item.bounce,
-  .nav-item:active {
+  .nav-item:active,
+  .modifier-picker button.bounce {
     transition: none;
     animation: none;
     transform: none;

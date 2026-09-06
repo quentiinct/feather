@@ -88,13 +88,19 @@ function showPanel(name) {
 
 const PANELS = ['dashboard', 'hotkey', 'transcription', 'audio', 'general'];
 
+/**
+ * Rejoue le rebond. Retirer la classe puis forcer un reflow avant de la
+ * remettre : sans ça, recliquer un élément déjà actif ne rejouerait rien.
+ */
+function bounce(el) {
+  el.classList.remove('bounce');
+  void el.offsetWidth;
+  el.classList.add('bounce');
+}
+
 $$('.nav-item').forEach((btn) => {
   btn.addEventListener('click', () => {
-    // Retirer la classe puis forcer un reflow avant de la remettre : sans ça,
-    // recliquer la section déjà ouverte ne rejouerait aucune animation.
-    btn.classList.remove('bounce');
-    void btn.offsetWidth;
-    btn.classList.add('bounce');
+    bounce(btn);
     window.location.hash = btn.dataset.panel;
     showPanel(btn.dataset.panel);
   });
@@ -587,10 +593,16 @@ $('#modifier-picker').addEventListener('click', async (event) => {
     toast('Deux modificateurs au minimum, sinon le raccourci se déclencherait sans arrêt.', 'error');
     return;
   }
+  bounce(btn);
   // Ordre stable pour l'affichage
   const ordered = ['ctrl', 'shift', 'alt', 'meta'].filter((m) => current.has(m));
   await patch({ hotkey: { modifiers: ordered } });
   renderHotkey();
+});
+
+// animationend remonte : un seul écouteur sur le groupe suffit pour les quatre touches.
+$('#modifier-picker').addEventListener('animationend', (event) => {
+  event.target.classList.remove('bounce');
 });
 
 $('#hold-threshold').addEventListener('change', async (event) => {
