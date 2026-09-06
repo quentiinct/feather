@@ -6,6 +6,9 @@ const net = require('net');
 const path = require('path');
 const { spawn } = require('child_process');
 
+/** Délai de garde avant de retenter le serveur après un démarrage raté. */
+const SERVER_RETRY_MS = 60000;
+
 /**
  * Pilote whisper.cpp. On appelle les exécutables en sous-processus plutôt qu'un
  * binding natif : aucune compilation nécessaire, et on peut échanger le build CPU
@@ -47,6 +50,12 @@ class WhisperEngine {
     this.serverSignature = null;
     this.serverStarting = null;
     this.serverEnabled = true;
+    /** Vrai seulement quand le serveur répond : le processus existe bien avant. */
+    this.serverReady = false;
+    /** Instant avant lequel on ne retente pas le serveur, après un échec. */
+    this.serverRetryAt = 0;
+    /** Dernières lignes d'erreur du serveur, pour diagnostiquer une panne. */
+    this.serverLog = [];
     this.lastPath = null;
 
     /**
@@ -297,11 +306,24 @@ class WhisperEngine {
   async ensureServer(cfg) {
     if (!this.serverEnabled || !this.serverBinary) return null;
 
+    // Une panne de serveur ne condamne plus la session : on repasse par le CLI
+    // le temps du délai de garde, puis on retente.
+    if (this.serverRetryAt && Date.now() < this.serverRetryAt) return null;
+
     const signature = this._serverSignature(cfg);
-    if (this.server && this.serverSignature === signature) return this.serverPort;
+
+    // `serverReady` est capital : entre le spawn et la fin du chargement du
+    // modèle, `this.server` existe déjà mais rien n'écoute. Rendre le port à ce
+    // moment-là envoyait la dictée sur un port fermé, et son échec tuait le
+    // serveur que le préchauffage attendait encore.
+    if (this.server && this.serverReady && this.serverSignature === signature) {
+      return this.serverPort;
+    }
     if (this.serverStarting) {
       await this.serverStarting.catch(() => {});
-      if (this.server && this.serverSignature === signature) return this.serverPort;
+      if (this.server && this.serverReady && this.serverSignature === signature) {
+        return this.serverPort;
+      }
     }
     this.stopServer();
 
@@ -324,34 +346,50 @@ class WhisperEngine {
       this.server = child;
       this.serverPort = port;
       this.serverSignature = signature;
+      this.serverReady = false;
+      this.serverLog = [];
 
       child.stdout.resume();
-      child.stderr.resume();
-      child.on('exit', () => {
+      // La sortie d'erreur porte le diagnostic de whisper.cpp (VRAM, modèle
+      // illisible, backend absent). La jeter rendait toute panne opaque.
+      child.stderr.on('data', (chunk) => {
+        for (const line of String(chunk).split(/\r?\n/)) {
+          if (line.trim()) this.serverLog.push(line.trim());
+        }
+        if (this.serverLog.length > 40) this.serverLog.splice(0, this.serverLog.length - 40);
+      });
+      const forget = () => {
         if (this.server === child) {
           this.server = null;
           this.serverSignature = null;
+          this.serverReady = false;
         }
-      });
-      child.on('error', () => {
-        if (this.server === child) {
-          this.server = null;
-          this.serverSignature = null;
-        }
-      });
+      };
+      child.on('exit', forget);
+      child.on('error', forget);
 
       await this._waitForServer(port);
+      this.serverReady = true;
       return port;
     })();
 
     try {
-      return await this.serverStarting;
+      const ready = await this.serverStarting;
+      this.serverRetryAt = 0;
+      return ready;
     } catch (err) {
-      // Un serveur qui ne démarre pas ne doit pas condamner la dictée :
-      // on désactive ce chemin et on laisse le CLI prendre le relais.
+      // Un serveur qui ne démarre pas ne doit pas condamner la dictée : le CLI
+      // prend le relais, mais seulement pour un temps — désactiver le chemin
+      // rapide pour toute la session sur un seul incident coûtait dix fois le
+      // temps de transcription à chaque dictée suivante.
       this.stopServer();
-      this.serverEnabled = false;
-      console.warn('[whisper] serveur indisponible (' + err.message + '), repli sur le CLI.');
+      this.serverRetryAt = Date.now() + SERVER_RETRY_MS;
+      const detail = this.serverLog.slice(-3).join(' | ');
+      console.warn(
+        '[whisper] serveur indisponible (' + err.message + '), repli sur le CLI' +
+          (detail ? ' — ' + detail : '') +
+          '. Nouvelle tentative dans ' + Math.round(SERVER_RETRY_MS / 1000) + ' s.'
+      );
       return null;
     } finally {
       this.serverStarting = null;
@@ -370,6 +408,7 @@ class WhisperEngine {
     this.server = null;
     this.serverSignature = null;
     this.serverPort = 0;
+    this.serverReady = false;
   }
 
   /** Envoie le WAV au serveur en multipart. */
@@ -440,9 +479,11 @@ class WhisperEngine {
       return { text: '', language: null, ms: Date.now() - startedAt, cancelled: true, via: 'serveur' };
     }
 
-    if (port) {
+    // Deux tentatives : un serveur mort (déchargé, tombé) se relance en ~2 s,
+    // ce qui reste dix fois plus rapide que le CLI. Le repli ne sert qu'après.
+    for (let essai = 0, activePort = port; essai < 2 && activePort; essai += 1) {
       try {
-        const text = await this._transcribeViaServer(port, wavPath, cfg);
+        const text = await this._transcribeViaServer(activePort, wavPath, cfg);
         if (abandoned()) {
           return { text: '', language: null, ms: Date.now() - startedAt, cancelled: true, via: 'serveur' };
         }
@@ -451,8 +492,16 @@ class WhisperEngine {
         if (err.name === 'AbortError' || abandoned()) {
           return { text: '', language: null, ms: Date.now() - startedAt, cancelled: true, via: 'serveur' };
         }
-        console.warn('[whisper] requête serveur échouée (' + err.message + '), repli sur le CLI.');
         this.stopServer();
+        if (essai === 0) {
+          console.warn('[whisper] requête serveur échouée (' + err.message + '), relance du serveur.');
+          activePort = await this.ensureServer(cfg);
+          if (abandoned()) {
+            return { text: '', language: null, ms: Date.now() - startedAt, cancelled: true, via: 'serveur' };
+          }
+        } else {
+          console.warn('[whisper] serveur toujours injoignable (' + err.message + '), repli sur le CLI.');
+        }
       }
     }
 
