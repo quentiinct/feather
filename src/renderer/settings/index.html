@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:;"
+    />
+    <title>VoxFlow</title>
+    <link rel="stylesheet" href="./app.css" />
+  </head>
+  <body>
+    <header class="titlebar">
+      <div class="brand"><span class="brand-mark"></span> VoxFlow</div>
+      <div class="window-buttons">
+        <button id="btn-minimize" title="Réduire" aria-label="Réduire">─</button>
+        <button id="btn-close" class="close" title="Fermer" aria-label="Fermer">✕</button>
+      </div>
+    </header>
+
+    <div class="shell">
+      <nav class="sidebar" aria-label="Sections">
+        <button class="nav-item" data-panel="dashboard" aria-current="page">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="1.8" y="8.5" width="3" height="5.7" rx="1" />
+            <rect x="6.5" y="4.5" width="3" height="9.7" rx="1" />
+            <rect x="11.2" y="6.8" width="3" height="7.4" rx="1" />
+          </svg>
+          Tableau de bord
+        </button>
+        <button class="nav-item" data-panel="hotkey">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="1.2" y="3.8" width="13.6" height="8.4" rx="2" />
+            <path d="M4.4 6.6h.01M7 6.6h.01M9.6 6.6h.01M4.9 9.4h6.2" stroke-linecap="round" />
+          </svg>
+          Raccourci
+        </button>
+        <button class="nav-item" data-panel="transcription">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="5.6" y="1.4" width="4.8" height="8.4" rx="2.4" />
+            <path d="M3.2 7.6a4.8 4.8 0 0 0 9.6 0M8 12.4v2.2" stroke-linecap="round" />
+          </svg>
+          Transcription
+        </button>
+        <button class="nav-item" data-panel="cleanup">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M7.2 1.8 8.4 4.6 11.2 5.8 8.4 7 7.2 9.8 6 7 3.2 5.8 6 4.6z" stroke-linejoin="round" />
+            <path d="M11.6 9.4l.7 1.6 1.6.7-1.6.7-.7 1.6-.7-1.6-1.6-.7 1.6-.7z" stroke-linejoin="round" />
+          </svg>
+          Nettoyage
+        </button>
+        <button class="nav-item" data-panel="output">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M2.2 8h9.4M8.4 4.6 12 8l-3.6 3.4" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M13.6 2.4v11.2" stroke-linecap="round" />
+          </svg>
+          Sortie
+        </button>
+        <button class="nav-item" data-panel="audio">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path
+              d="M1.6 6.4v3.2M4.6 4.2v7.6M7.6 2.2v11.6M10.6 4.8v6.4M13.6 6.8v2.4"
+              stroke-linecap="round"
+            />
+          </svg>
+          Micro
+        </button>
+        <button class="nav-item" data-panel="general">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="8" cy="8" r="2.2" />
+            <path
+              d="M8 1.6v1.7M8 12.7v1.7M14.4 8h-1.7M3.3 8H1.6M12.5 3.5l-1.2 1.2M4.7 11.3l-1.2 1.2M12.5 12.5l-1.2-1.2M4.7 4.7 3.5 3.5"
+              stroke-linecap="round"
+            />
+          </svg>
+          Général
+        </button>
+
+        <div class="sidebar-footer">
+          <div class="status-line">
+            <span class="status-dot" id="engine-dot"></span>
+            <span id="engine-status">Vérification…</span>
+          </div>
+          <div class="status-line">
+            <span class="status-dot" id="hotkey-dot"></span>
+            <span id="hotkey-status">—</span>
+          </div>
+          <div id="app-version" style="opacity: 0.7"></div>
+        </div>
+      </nav>
+
+      <main class="content">
+        <!-- ============ TABLEAU DE BORD ============ -->
+        <section class="panel" id="panel-dashboard">
+          <div class="panel-head">
+            <h1>Tableau de bord</h1>
+            <p>Ce que vous avez dicté, et ce que ça vous a épargné au clavier.</p>
+          </div>
+
+          <div class="card">
+            <div class="hero">
+              <span class="hero-value" id="hero-words">0</span>
+              <span class="hero-label">mots dictés depuis l'installation</span>
+            </div>
+            <div class="inline-note" id="hero-note"></div>
+          </div>
+
+          <div class="tiles">
+            <div class="tile">
+              <div class="tile-label">Aujourd'hui</div>
+              <div class="tile-value" id="tile-today">0</div>
+              <div class="tile-note" id="tile-today-note">aucune dictée</div>
+            </div>
+            <div class="tile">
+              <div class="tile-label">7 derniers jours</div>
+              <div class="tile-value" id="tile-week">0</div>
+              <div class="tile-note">mots</div>
+            </div>
+            <div class="tile">
+              <div class="tile-label">Temps gagné</div>
+              <div class="tile-value" id="tile-saved">0 min</div>
+              <div class="tile-note">vs 40 mots/min au clavier</div>
+            </div>
+            <div class="tile">
+              <div class="tile-label">Débit de parole</div>
+              <div class="tile-value" id="tile-wpm">—</div>
+              <div class="tile-note">mots par minute</div>
+            </div>
+            <div class="tile">
+              <div class="tile-label">Série en cours</div>
+              <div class="tile-value" id="tile-streak">0 j</div>
+              <div class="tile-note" id="tile-streak-note">jours consécutifs</div>
+            </div>
+          </div>
+
+          <div class="card chart-card">
+            <div class="chart-head">
+              <h2>Mots dictés par jour</h2>
+              <span class="chart-sub">30 derniers jours</span>
+            </div>
+            <svg
+              class="chart"
+              id="chart"
+              role="img"
+              aria-label="Nombre de mots dictés chaque jour sur les 30 derniers jours"
+            ></svg>
+            <div class="chart-tooltip" id="chart-tooltip" role="status"></div>
+            <div class="table-toggle">
+              <button class="link" id="toggle-table" aria-expanded="false">
+                Afficher les valeurs sous forme de tableau
+              </button>
+              <div id="table-wrap" hidden></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="chart-head">
+              <h2>Dictées récentes</h2>
+              <button class="btn small" id="clear-history">Effacer l'historique</button>
+            </div>
+            <div class="history-list" id="history-list">
+              <div class="empty-state">Aucune dictée pour le moment.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ RACCOURCI ============ -->
+        <section class="panel" id="panel-hotkey" hidden>
+          <div class="panel-head">
+            <h1>Raccourci</h1>
+            <p>
+              Le raccourci par défaut n'utilise que des modificateurs. Il reste compatible avec
+              vos raccourcis habituels : si vous appuyez sur une autre touche dans la foulée
+              (Ctrl+Maj+T, par exemple), la dictée est annulée sans rien écrire.
+            </p>
+          </div>
+
+          <div class="card">
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Type de raccourci</span>
+                <small>Les modificateurs seuls sont plus rapides à déclencher.</small>
+              </div>
+              <div class="row-control">
+                <div class="segmented" id="hotkey-mode">
+                  <button data-value="modifiers">Modificateurs</button>
+                  <button data-value="combo">Combinaison</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="row" id="row-modifiers">
+              <div class="row-text">
+                <span class="row-title">Touches</span>
+                <small>Sélectionnez deux modificateurs au minimum.</small>
+              </div>
+              <div class="row-control">
+                <div class="modifier-picker" id="modifier-picker">
+                  <button data-mod="ctrl">Ctrl</button>
+                  <button data-mod="shift">Maj</button>
+                  <button data-mod="alt">Alt</button>
+                  <button data-mod="meta">Win</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="row" id="row-combo" hidden>
+              <div class="row-text">
+                <label for="accelerator">Combinaison</label>
+                <small>Format Electron, par exemple <code>Control+Shift+Space</code>.</small>
+              </div>
+              <div class="row-control">
+                <input type="text" id="accelerator" style="width: 210px" />
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Comportement</span>
+                <small id="activation-help"></small>
+              </div>
+              <div class="row-control">
+                <div class="segmented" id="activation-mode">
+                  <button data-value="toggle">Bascule</button>
+                  <button data-value="hold">Maintien</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="row-text">
+                <label for="hold-threshold">Seuil de maintien</label>
+                <small
+                  >En mode bascule, un appui plus long que ce délai passe en talkie-walkie :
+                  la dictée s'arrête au relâchement.</small
+                >
+              </div>
+              <div class="row-control">
+                <input type="number" id="hold-threshold" min="150" max="1500" step="50" />
+                <span class="tile-note">ms</span>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Raccourci actuel</span>
+                <small>Appuyez dessus n'importe où pour lancer une dictée.</small>
+              </div>
+              <div class="row-control">
+                <span class="kbd-preview" id="kbd-preview"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Essai</h2>
+            <p class="card-sub">
+              Lance une dictée depuis ici. Le texte sera inséré dans la dernière fenêtre active,
+              alors cliquez d'abord dans un champ de saisie ailleurs.
+            </p>
+            <button class="btn primary" id="test-dictation">Démarrer une dictée</button>
+          </div>
+        </section>
+
+        <!-- ============ TRANSCRIPTION ============ -->
+        <section class="panel" id="panel-transcription" hidden>
+          <div class="panel-head">
+            <h1>Transcription</h1>
+            <p>
+              Tout est calculé sur votre machine par whisper.cpp. Aucun audio ne quitte
+              l'ordinateur.
+            </p>
+          </div>
+
+          <div class="card">
+            <h2>Moteur</h2>
+            <p class="card-sub" id="engine-detail">Vérification de l'installation…</p>
+            <button class="btn" id="install-binaries">Réinstaller les binaires</button>
+            <div class="progress" id="binaries-progress" hidden><span></span></div>
+          </div>
+
+          <div class="card">
+            <h2>Modèles</h2>
+            <p class="card-sub">
+              Un modèle plus gros transcrit mieux mais consomme plus de mémoire vidéo.
+            </p>
+            <div class="model-list" id="model-list"></div>
+          </div>
+
+          <div class="card">
+            <div class="row">
+              <div class="row-text">
+                <label for="language">Langue</label>
+                <small>« Détection automatique » coûte un court instant de plus.</small>
+              </div>
+              <div class="row-control">
+                <select id="language">
+                  <option value="fr">Français</option>
+                  <option value="en">Anglais</option>
+                  <option value="es">Espagnol</option>
+                  <option value="de">Allemand</option>
+                  <option value="it">Italien</option>
+                  <option value="pt">Portugais</option>
+                  <option value="nl">Néerlandais</option>
+                  <option value="auto">Détection automatique</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Accélération GPU</span>
+                <small id="gpu-help">Requiert les binaires compilés avec CUDA.</small>
+              </div>
+              <div class="row-control">
+                <label class="switch"
+                  ><input type="checkbox" id="use-gpu" /><span class="track"></span
+                  ><span class="thumb"></span
+                ></label>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Qualité de décodage</span>
+                <small>Le faisceau est plus précis, le glouton plus rapide.</small>
+              </div>
+              <div class="row-control">
+                <div class="segmented" id="strategy">
+                  <button data-value="beam">Faisceau</button>
+                  <button data-value="greedy">Glouton</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="row stacked">
+              <div class="row-text">
+                <label for="initial-prompt">Amorce de contexte</label>
+                <small>
+                  Quelques mots de votre vocabulaire habituel orientent le décodeur. Par exemple :
+                  les noms propres, le jargon de votre métier.
+                </small>
+              </div>
+              <div class="row-control">
+                <textarea
+                  id="initial-prompt"
+                  placeholder="Kubernetes, Quentin Courtade, Wispr Flow, refactoring…"
+                ></textarea>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="row-text">
+                <label for="threads">Threads CPU</label>
+                <small>0 laisse VoxFlow choisir en fonction de votre processeur.</small>
+              </div>
+              <div class="row-control">
+                <input type="number" id="threads" min="0" max="32" step="1" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ NETTOYAGE ============ -->
+        <section class="panel" id="panel-cleanup" hidden>
+          <div class="panel-head">
+            <h1>Nettoyage</h1>
+            <p>
+              Ce qui sort de Whisper est fidèle, mais oral. Cette étape le rend écrivable :
+              ponctuation, hésitations, répétitions.
+            </p>
+          </div>
+
+          <div class="card">
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Mode</span>
+                <small id="cleanup-mode-help"></small>
+              </div>
+              <div class="row-control">
+                <div class="segmented" id="cleanup-mode">
+                  <button data-value="off">Aucun</button>
+                  <button data-value="rules">Règles</button>
+                  <button data-value="llm">LLM local</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" id="rules-card">
+            <h2>Règles</h2>
+            <p class="card-sub">Traitement local et instantané, sans dépendance.</p>
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Supprimer les hésitations</span>
+                <small>« euh », « hum », « ben »…</small>
+              </div>
+              <div class="row-control">
+                <label class="switch"
+                  ><input type="checkbox" data-rule="removeFillers" /><span class="track"></span
+                  ><span class="thumb"></span
+                ></label>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Supprimer les répétitions</span>
+                <small>« le le projet », « on va on va commencer »</small>
+              </div>
+              <div class="row-control">
+                <label class="switch"
+                  ><input type="checkbox" data-rule="dedupeWords" /><span class="track"></span
+                  ><span class="thumb"></span
+                ></label>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Majuscules en début de phrase</span>
+                <small></small>
+              </div>
+              <div class="row-control">
+                <label class="switch"
+                  ><input type="checkbox" data-rule="capitalizeSentences" /><span
+                    class="track"
+                  ></span
+                  ><span class="thumb"></span
+                ></label>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Typographie française</span>
+                <small>Espace insécable avant : ; ! ?</small>
+              </div>
+              <div class="row-control">
+                <label class="switch"
+                  ><input type="checkbox" data-rule="frenchTypography" /><span
+                    class="track"
+                  ></span
+                  ><span class="thumb"></span
+                ></label>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Retirer le point final</span>
+                <small>Pratique pour dicter dans une barre de recherche.</small>
+              </div>
+              <div class="row-control">
+                <label class="switch"
+                  ><input type="checkbox" data-rule="trimTrailingPeriod" /><span
+                    class="track"
+                  ></span
+                  ><span class="thumb"></span
+                ></label>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" id="llm-card">
+            <h2>LLM local</h2>
+            <p class="card-sub">
+              Reformulation par un modèle qui tourne sur votre machine via Ollama. Gratuit, hors
+              ligne, et rien n'est envoyé sur Internet. Si Ollama ne répond pas, VoxFlow retombe
+              automatiquement sur les règles.
+            </p>
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Statut d'Ollama</span>
+                <small id="ollama-status">Non vérifié.</small>
+              </div>
+              <div class="row-control">
+                <button class="btn small" id="probe-ollama">Tester</button>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <label for="llm-model">Modèle</label>
+                <small>Un modèle de 3 milliards de paramètres suffit largement ici.</small>
+              </div>
+              <div class="row-control">
+                <input type="text" id="llm-model" style="width: 210px" />
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <label for="llm-endpoint">Adresse</label>
+                <small></small>
+              </div>
+              <div class="row-control">
+                <input type="text" id="llm-endpoint" style="width: 210px" />
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <label for="llm-timeout">Délai maximum</label>
+                <small>Au-delà, on garde le nettoyage par règles pour ne pas vous faire attendre.</small>
+              </div>
+              <div class="row-control">
+                <input type="number" id="llm-timeout" min="1000" max="30000" step="500" />
+                <span class="tile-note">ms</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Dictionnaire</h2>
+            <p class="card-sub">
+              Corrige systématiquement les mots que Whisper écrit mal : noms propres, marques,
+              jargon.
+            </p>
+            <div class="dict-list" id="dict-list"></div>
+            <button class="btn small" id="dict-add">Ajouter une entrée</button>
+          </div>
+
+          <div class="card">
+            <h2>Aperçu</h2>
+            <p class="card-sub">Tapez une phrase telle que Whisper la produirait.</p>
+            <textarea
+              id="preview-input"
+              placeholder="euh bonjour, je voulais euh vous dire que le le projet est presque fini"
+            ></textarea>
+            <div class="preview-box muted" id="preview-output" style="margin-top: 10px">
+              Le résultat s'affichera ici.
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ SORTIE ============ -->
+        <section class="panel" id="panel-output" hidden>
+          <div class="panel-head">
+            <h1>Sortie</h1>
+            <p>Comment le texte arrive dans l'application où vous écrivez.</p>
+          </div>
+
+          <div class="card">
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Méthode</span>
+                <small id="output-mode-help"></small>
+              </div>
+              <div class="row-control">
+                <div class="segmented" id="output-mode">
+                  <button data-value="paste">Collage</button>
+                  <button data-value="type">Frappe</button>
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Restaurer le presse-papiers</span>
+                <small>Remet votre contenu précédent juste après le collage.</small>
+              </div>
+              <div class="row-control">
+                <label class="switch"
+                  ><input type="checkbox" id="restore-clipboard" /><span class="track"></span
+                  ><span class="thumb"></span
+                ></label>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Espace final</span>
+                <small>Permet d'enchaîner plusieurs dictées sans coller les mots.</small>
+              </div>
+              <div class="row-control">
+                <label class="switch"
+                  ><input type="checkbox" id="append-space" /><span class="track"></span
+                  ><span class="thumb"></span
+                ></label>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Test d'injection</span>
+                <small>Écrit une phrase dans la fenêtre qui avait le focus avant VoxFlow.</small>
+              </div>
+              <div class="row-control">
+                <button class="btn small" id="test-injection">Tester</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ MICRO ============ -->
+        <section class="panel" id="panel-audio" hidden>
+          <div class="panel-head">
+            <h1>Micro</h1>
+            <p>Choix du périphérique et garde-fous sur la capture.</p>
+          </div>
+
+          <div class="card">
+            <div class="row">
+              <div class="row-text">
+                <label for="mic-device">Périphérique</label>
+                <small id="mic-help">Le micro par défaut de Windows est utilisé.</small>
+              </div>
+              <div class="row-control">
+                <select id="mic-device" style="min-width: 220px"></select>
+                <button class="btn small" id="refresh-mics">Actualiser</button>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Niveau d'entrée</span>
+                <small>Parlez pour vérifier que le micro capte bien.</small>
+              </div>
+              <div class="row-control">
+                <div class="meter"><span id="mic-meter"></span></div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <label for="max-duration">Durée maximale</label>
+                <small>La dictée s'arrête toute seule au-delà, pour éviter un oubli.</small>
+              </div>
+              <div class="row-control">
+                <input type="number" id="max-duration" min="10" max="600" step="10" />
+                <span class="tile-note">s</span>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <label for="silence-threshold">Seuil de silence</label>
+                <small>En dessous, la capture est jetée sans passer par la transcription.</small>
+              </div>
+              <div class="row-control">
+                <input type="range" id="silence-threshold" min="0" max="0.05" step="0.001" />
+                <span class="tile-note" id="silence-value"></span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ GÉNÉRAL ============ -->
+        <section class="panel" id="panel-general" hidden>
+          <div class="panel-head">
+            <h1>Général</h1>
+            <p>Apparence, démarrage et données locales.</p>
+          </div>
+
+          <div class="card">
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Thème</span>
+                <small></small>
+              </div>
+              <div class="row-control">
+                <div class="segmented" id="theme">
+                  <button data-value="system">Système</button>
+                  <button data-value="light">Clair</button>
+                  <button data-value="dark">Sombre</button>
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Overlay pendant la dictée</span>
+                <small>La petite pastille qui indique que VoxFlow écoute.</small>
+              </div>
+              <div class="row-control">
+                <label class="switch"
+                  ><input type="checkbox" id="show-overlay" /><span class="track"></span
+                  ><span class="thumb"></span
+                ></label>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <label for="overlay-position">Position de l'overlay</label>
+                <small></small>
+              </div>
+              <div class="row-control">
+                <select id="overlay-position">
+                  <option value="bottom-center">En bas au centre</option>
+                  <option value="bottom-right">En bas à droite</option>
+                  <option value="top-center">En haut au centre</option>
+                  <option value="top-right">En haut à droite</option>
+                </select>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Lancer au démarrage de Windows</span>
+                <small>VoxFlow démarre réduit dans la zone de notification.</small>
+              </div>
+              <div class="row-control">
+                <label class="switch"
+                  ><input type="checkbox" id="launch-at-login" /><span class="track"></span
+                  ><span class="thumb"></span
+                ></label>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Conserver l'historique</span>
+                <small>Les transcriptions restent en local, dans votre dossier utilisateur.</small>
+              </div>
+              <div class="row-control">
+                <label class="switch"
+                  ><input type="checkbox" id="history-enabled" /><span class="track"></span
+                  ><span class="thumb"></span
+                ></label>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Données</h2>
+            <p class="card-sub">Réglages, statistiques et historique sont stockés localement.</p>
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Dossier de données</span>
+                <small id="data-path"></small>
+              </div>
+              <div class="row-control">
+                <button class="btn small" id="open-data">Ouvrir</button>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Réinitialiser les statistiques</span>
+                <small>Efface les compteurs et l'historique. Les réglages sont conservés.</small>
+              </div>
+              <div class="row-control">
+                <button class="btn small danger" id="reset-stats">Réinitialiser</button>
+              </div>
+            </div>
+            <div class="row">
+              <div class="row-text">
+                <span class="row-title">Réinitialiser les réglages</span>
+                <small>Remet toutes les options à leur valeur d'origine.</small>
+              </div>
+              <div class="row-control">
+                <button class="btn small danger" id="reset-config">Réinitialiser</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>À propos</h2>
+            <p class="card-sub" id="about-text"></p>
+            <button class="btn small" id="open-repo">Voir le dépôt</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

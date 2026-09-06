@@ -1,0 +1,71 @@
+{
+  "name": "voxflow",
+  "productName": "VoxFlow",
+  "version": "0.1.0",
+  "description": "Dictée vocale locale et instantanée pour Windows — parlez, VoxFlow écrit dans n'importe quelle application.",
+  "main": "src/main/index.js",
+  "author": "Quentin Courtade",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "setup": "node scripts/setup-whisper.js",
+    "postinstall": "node scripts/make-icons.js",
+    "build": "electron-builder --win --publish never",
+    "pack": "electron-builder --dir",
+    "icons": "node scripts/make-icons.js"
+  },
+  "dependencies": {
+    "extract-zip": "^2.0.1",
+    "uiohook-napi": "^1.5.5"
+  },
+  "devDependencies": {
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.quentincourtade.voxflow",
+    "productName": "VoxFlow",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "src/**/*",
+      "resources/**/*",
+      "package.json",
+      "!**/*.map"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/bin",
+        "to": "bin",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "VoxFlow"
+    },
+    "asarUnpack": [
+      "resources/inject.ps1"
+    ],
+    "npmRebuild": false
+  }
+}

@@ -1,0 +1,35 @@
+# Dépendances
+node_modules/
+
+# Build
+dist/
+out/
+*.tsbuildinfo
+
+# Binaires & modèles téléchargés (trop volumineux pour Git)
+resources/bin/
+resources/models/
+*.zip
+*.bin
+*.exe
+*.dll
+
+# Données locales / config utilisateur
+.voxflow/
+config.local.json
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS / éditeurs
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Secrets
+.env
+.env.*
+!.env.example
