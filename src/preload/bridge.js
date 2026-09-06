@@ -32,6 +32,7 @@ const INVOKE_CHANNELS = new Set([
   'app:checkUpdates',
   'app:setLaunchAtLogin',
   'window:minimize',
+  'window:maximize',
   'window:close',
   'window:quit'
 ]);
@@ -65,6 +66,7 @@ const RECEIVE_CHANNELS = new Set([
   'toast',
   'download:progress',
   'update:state',
+  'window:state',
   'transcript'
 ]);
 

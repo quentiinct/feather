@@ -89,9 +89,15 @@ const PANELS = ['dashboard', 'hotkey', 'transcription', 'audio', 'general'];
 
 $$('.nav-item').forEach((btn) => {
   btn.addEventListener('click', () => {
+    // Retirer la classe puis forcer un reflow avant de la remettre : sans ça,
+    // recliquer la section déjà ouverte ne rejouerait aucune animation.
+    btn.classList.remove('bounce');
+    void btn.offsetWidth;
+    btn.classList.add('bounce');
     window.location.hash = btn.dataset.panel;
     showPanel(btn.dataset.panel);
   });
+  btn.addEventListener('animationend', () => btn.classList.remove('bounce'));
 });
 
 /** L'ancre permet de rouvrir la fenêtre sur la section où l'on était. */
@@ -737,6 +743,23 @@ $('#reset-config').addEventListener('click', async () => {
 
 $('#btn-minimize').addEventListener('click', () => api.invoke('window:minimize'));
 $('#btn-close').addEventListener('click', () => api.invoke('window:close'));
+
+const maximizeBtn = $('#btn-maximize');
+
+function setMaximized(maximized) {
+  const label = maximized ? 'Restaurer' : 'Agrandir';
+  maximizeBtn.setAttribute('aria-pressed', maximized ? 'true' : 'false');
+  maximizeBtn.title = label;
+  maximizeBtn.setAttribute('aria-label', label);
+}
+
+maximizeBtn.addEventListener('click', async () => {
+  setMaximized(await api.invoke('window:maximize'));
+});
+
+// Le double-clic sur la barre de titre et Win+Flèche agrandissent aussi :
+// l'état vient du principal pour que l'icône ne mente jamais.
+api.on('window:state', setMaximized);
 
 /* ------------------------------------------------------------------ *
  * Mises à jour

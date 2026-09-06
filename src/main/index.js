@@ -266,6 +266,13 @@ function createSettingsWindow() {
     hash: process.env.FEATHER_PANEL || ''
   });
   settingsWindow.once('ready-to-show', () => settingsWindow.show());
+
+  // Le bouton d'agrandissement n'est pas le seul chemin : double-clic sur la
+  // barre de titre, Win+Flèche haut, glissé vers le haut du bureau. L'icône
+  // suit l'état réel de la fenêtre, pas la dernière chose cliquée.
+  const sendWindowState = () => toSettings('window:state', settingsWindow?.isMaximized() === true);
+  settingsWindow.on('maximize', sendWindowState);
+  settingsWindow.on('unmaximize', sendWindowState);
   if (IS_DEV) settingsWindow.webContents.openDevTools({ mode: 'detach' });
 
   // Fermer la fenêtre remet l'app dans la zone de notification, elle ne quitte pas
@@ -666,6 +673,12 @@ function registerIpcHandlers() {
 
   ipcMain.handle('window:minimize', () => settingsWindow?.minimize());
   ipcMain.handle('window:close', () => settingsWindow?.hide());
+  ipcMain.handle('window:maximize', () => {
+    if (!settingsWindow) return false;
+    if (settingsWindow.isMaximized()) settingsWindow.unmaximize();
+    else settingsWindow.maximize();
+    return settingsWindow.isMaximized();
+  });
   ipcMain.handle('window:quit', () => {
     quitting = true;
     app.quit();

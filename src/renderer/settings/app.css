@@ -41,6 +41,7 @@
   /* Accent d'interface */
   --accent: #4b262f;
   --accent-soft: rgba(75, 38, 47, 0.1);
+  --accent-line: rgba(75, 38, 47, 0.4);
   --on-accent: #ffffff;
 
   /* Série de données (une seule série : pas de légende nécessaire) */
@@ -74,6 +75,7 @@
 
   --accent: #c97085;
   --accent-soft: rgba(201, 112, 133, 0.16);
+  --accent-line: rgba(201, 112, 133, 0.45);
   --on-accent: #151311;
 
   --series: #c97085;
@@ -162,12 +164,33 @@ body {
   font-size: 13px;
 }
 
-.window-buttons button:hover {
-  background: var(--surface-hover);
+.window-buttons button svg {
+  width: 16px;
+  height: 16px;
 }
 
+/* Le même bouton porte les deux icônes ; aria-pressed dit laquelle montrer. */
+.window-buttons button .icon-restore {
+  display: none;
+}
+
+.window-buttons button[aria-pressed='true'] .icon-maximize {
+  display: none;
+}
+
+.window-buttons button[aria-pressed='true'] .icon-restore {
+  display: inline;
+}
+
+.window-buttons button:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+/* Un rouge d'alerte plutôt que l'accent : fermer n'est pas une navigation.
+   Fixé de part et d'autre, il tient sur les deux fonds. */
 .window-buttons button.close:hover {
-  background: #e11d48;
+  background: #b0223a;
   color: #fff;
 }
 
@@ -203,6 +226,11 @@ body {
   text-align: left;
   cursor: pointer;
   width: 100%;
+  transition:
+    background 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease,
+    transform 120ms ease;
 }
 
 .nav-item:hover {
@@ -210,10 +238,52 @@ body {
   color: var(--ink);
 }
 
+.nav-item:active {
+  transform: scale(0.98);
+}
+
+/* Le contour est un box-shadow et non une bordure : il se pose sur l'élément
+   sans en changer la boîte, donc la section active ne décale pas les autres. */
 .nav-item[aria-current='page'] {
   background: var(--accent-soft);
-  color: var(--ink);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
   font-weight: 600;
+}
+
+.nav-item[aria-current='page'] svg {
+  opacity: 1;
+}
+
+/* Posée au clic, retirée à la fin de l'animation : sans ça, revenir sur une
+   section déjà visitée ne rejouerait rien. */
+.nav-item.bounce {
+  animation: nav-bounce 340ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes nav-bounce {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.04);
+  }
+  70% {
+    transform: scale(0.99);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-item,
+  .nav-item.bounce,
+  .nav-item:active {
+    transition: none;
+    animation: none;
+    transform: none;
+  }
 }
 
 .nav-item svg {
