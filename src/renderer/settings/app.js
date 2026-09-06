@@ -81,12 +81,15 @@ function showPanel(name) {
   });
   $('.content').scrollTop = 0;
   refreshSegmented();
-  if (name === 'dashboard') refreshStats();
+  if (name === 'dashboard') {
+    animateChart = true;
+    refreshStats();
+  }
   if (name === 'audio') loadMicrophones();
   if (name === 'transcription') refreshEngine();
 }
 
-const PANELS = ['dashboard', 'hotkey', 'transcription', 'audio', 'general'];
+const PANELS = ['dashboard', 'general', 'hotkey', 'audio', 'transcription'];
 
 /**
  * Rejoue le rebond. Retirer la classe puis forcer un reflow avant de la
@@ -220,8 +223,12 @@ function chartMode() {
   return mode === 'line' || mode === 'table' ? mode : 'bar';
 }
 
+let animateChart = false;
+
 function renderChart(series) {
   const mode = chartMode();
+  const animate = animateChart;
+  animateChart = false;
 
   // Le tableau est toujours construit : il sert aussi de contenu accessible.
   renderTable(series);
@@ -265,8 +272,8 @@ function renderChart(series) {
 
   const marks =
     mode === 'line'
-      ? drawLine(series, { centerOf, yOf, top: pad.top })
-      : drawBars(series, { pad, plotH, band, yOf });
+      ? drawLine(series, { centerOf, yOf, top: pad.top, animate })
+      : drawBars(series, { pad, plotH, band, yOf, animate });
 
   // Cibles de survol : pleine hauteur, plus larges que la marque
   series.forEach((day, i) => {
@@ -301,13 +308,14 @@ function renderChart(series) {
   });
 }
 
-function drawBars(series, { pad, plotH, band, yOf }) {
+function drawBars(series, { pad, plotH, band, yOf, animate }) {
   const barW = Math.min(24, Math.max(3, band - 2)); // 2px de surface entre voisins
   const bars = series.map((day, i) => {
     const x = pad.left + i * band + (band - barW) / 2;
     const y = yOf(day.words);
     if (day.words > 0) {
       const bar = svgEl('path', { class: 'bar', d: barPath(x, y, barW, Math.max(2, plotH - (y - pad.top))) });
+      if (animate) enterBar(bar, i);
       chartEl.appendChild(bar);
       return bar;
     }
@@ -320,6 +328,7 @@ function drawBars(series, { pad, plotH, band, yOf }) {
       height: 2,
       rx: 1
     });
+    if (animate) enterBar(stub, i);
     chartEl.appendChild(stub);
     return stub;
   });
@@ -338,15 +347,29 @@ function drawBars(series, { pad, plotH, band, yOf }) {
   };
 }
 
-function drawLine(series, { centerOf, yOf, top }) {
+/** Décalage d'une barre à l'autre, plafonné pour que 30 jours restent brefs. */
+function enterBar(mark, i) {
+  mark.style.animationDelay = Math.min(i * 12, 300) + 'ms';
+  mark.classList.add('enter');
+}
+
+function drawLine(series, { centerOf, yOf, top, animate }) {
   const points = series.map((day, i) => centerOf(i) + ',' + yOf(day.words));
-  chartEl.appendChild(
-    svgEl('path', {
-      class: 'line',
-      d: 'M' + points.join('L'),
-      'vector-effect': 'non-scaling-stroke'
-    })
-  );
+  const path = svgEl('path', {
+    class: 'line',
+    d: 'M' + points.join('L'),
+    'vector-effect': 'non-scaling-stroke'
+  });
+  chartEl.appendChild(path);
+
+  if (animate) {
+    // Le tracé se dévoile en décalant un tiret aussi long que lui. La longueur
+    // n'est connue qu'une fois le chemin dans le document.
+    const len = path.getTotalLength();
+    path.style.strokeDasharray = len;
+    path.style.setProperty('--len', len);
+    path.classList.add('enter');
+  }
 
   // Repère de survol : trait vertical + point cerclé de la couleur de la carte
   const crosshair = svgEl('line', { class: 'crosshair', x1: 0, x2: 0, y1: 0, y2: 0, opacity: 0 });
@@ -421,6 +444,7 @@ function renderTable(series) {
 
 bindSegmented('#chart-type', async (value) => {
   await patch({ ui: { chartType: value } });
+  animateChart = true;
   if (summary) renderChart(summary.series);
 });
 
@@ -892,7 +916,6 @@ async function boot() {
   renderAll();
   showPanel(panelFromHash());
   await refreshEngine();
-  await refreshStats();
 }
 
 boot().catch((err) => {
