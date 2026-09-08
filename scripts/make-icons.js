@@ -406,18 +406,18 @@ function featherSvg(box = 16, sizeHint = 64) {
 function main() {
   fs.mkdirSync(ASSETS, { recursive: true });
 
-  // Toutes les tailles que Windows demande réellement : sans correspondance
-  // exacte il réduit la plus proche, et le trait s'empâte.
-  const sizes = [512, 256, 128, 64, 48, 40, 32, 24, 20, 16];
-  const pngs = sizes.map((size) => ({ size, buffer: encodePng(drawAppIcon(size), size) }));
-
-  // Le PNG sert d'icône sous Linux et de source à l'icns de macOS, qui exige
-  // 512 px au minimum. Le ICO, lui, s'arrête à 256 : c'est sa limite de format.
-  fs.writeFileSync(path.join(ASSETS, 'icon.png'), pngs[0].buffer);
-  fs.writeFileSync(
-    path.join(ASSETS, 'icon.ico'),
-    encodeIco(pngs.filter((p) => p.size <= 256))
-  );
+  // `icon.png` et `icon.ico` ne sont plus produits ici : l'icône applicative
+  // vient du logo fourni (voir assets/README.md), et ce script tournant au
+  // postinstall, il l'écraserait à chaque `npm install`.
+  //
+  // Le tracé reste disponible — `drawAppIcon` et `encodeIco` sont exportés, et
+  // les trois lignes qui les écrivaient sont dans l'historique de ce fichier.
+  // Pour y revenir : rendre le bloc ci-dessous à sa place.
+  //
+  //   const sizes = [512, 256, 128, 64, 48, 40, 32, 24, 20, 16];
+  //   const pngs = sizes.map((s) => ({ size: s, buffer: encodePng(drawAppIcon(s), s) }));
+  //   fs.writeFileSync(path.join(ASSETS, 'icon.png'), pngs[0].buffer);
+  //   fs.writeFileSync(path.join(ASSETS, 'icon.ico'), encodeIco(pngs.filter((p) => p.size <= 256)));
 
   // La zone de notification affiche 16 px : on rend à cette taille plutôt que
   // de laisser Electron réduire un 32 px, ce qui empâterait le trait.
@@ -428,7 +428,7 @@ function main() {
   // Le logo de la barre de titre sort de la même géométrie que les icônes
   fs.writeFileSync(path.join(ASSETS, 'mark.svg'), featherSvg(16, 64) + '\n');
 
-  for (const name of ['icon.png', 'icon.ico', 'tray-light.png', 'tray-dark.png', 'tray-active.png', 'mark.svg']) {
+  for (const name of ['tray-light.png', 'tray-dark.png', 'tray-active.png', 'mark.svg']) {
     const bytes = fs.statSync(path.join(ASSETS, name)).size;
     process.stdout.write('  ' + name.padEnd(16) + (bytes / 1024).toFixed(1) + ' Ko\n');
   }
