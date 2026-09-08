@@ -838,9 +838,19 @@ if (!gotLock) {
     // en tâche de fond pour que la première dictée soit déjà instantanée.
     injector.start().catch((err) => log('injecteur :', err.message));
     whisper.init().then(async (state) => {
-      log('moteur :', state.ready ? 'prêt (' + whisper.buildKind + ')' : state.reason);
+      log('moteur :', state.ready ? 'prêt (' + whisper.buildKind + ')' : state.reason, state.details || '');
       if (!state.ready) {
-        notify('whisper.cpp n\'est pas installé. Ouvrez l\'onglet Transcription.', 'error');
+        // Un binaire présent mais qui refuse de démarrer n'est pas un binaire
+        // absent : sous Linux c'est presque toujours libgomp1 qui manque, et
+        // renvoyer vers l'installation ferait chercher au mauvais endroit.
+        notify(
+          state.reason === 'binaire-illisible'
+            ? 'whisper.cpp ne démarre pas : ' +
+                (state.details || 'bibliothèque manquante') +
+                (IS_LINUX ? ' — essayez : sudo apt install libgomp1' : '')
+            : "whisper.cpp n'est pas installé. Ouvrez l'onglet Transcription.",
+          'error'
+        );
         return;
       }
       if (!whisper.hasModel(config.get('whisper.model'))) {

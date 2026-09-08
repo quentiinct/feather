@@ -158,6 +158,17 @@ class WhisperEngine {
         : this._fromPath(exeName('whisper-server'));
 
       const help = await this._runHelp();
+      // Un binaire qui ne peut pas charger ses bibliothèques ne dit rien du tout
+      // et s'arrête. Le laisser passer pour « prêt » donnerait une dictée qui
+      // échoue sans raison affichée, alors que la cause est ici, en une ligne.
+      if (!help.trim()) {
+        return {
+          ready: false,
+          reason: 'binaire-illisible',
+          binary: this.binary,
+          details: this.startupError || ''
+        };
+      }
       this.flags = new Set(help.match(/(?:^|\s)(--?[a-z0-9][a-z0-9-]*)/gi)?.map((s) => s.trim()) || []);
 
       // Le build cuBLAS embarque les DLL CUDA à côté de l'exécutable
@@ -180,13 +191,25 @@ class WhisperEngine {
   _runHelp() {
     return new Promise((resolve) => {
       let out = '';
+      this.startupError = '';
       const child = spawn(this.binary, ['--help'], {
         windowsHide: true,
         env: libraryEnv(path.dirname(this.binary))
       });
+      // « error while loading shared libraries: libgomp.so.1 » arrive ici, et
+      // c'est le seul endroit où l'on saura pourquoi le moteur reste muet.
+      child.on('error', (err) => {
+        this.startupError = err.message;
+      });
       const done = () => resolve(out);
       child.stdout.on('data', (d) => (out += d.toString('utf8')));
-      child.stderr.on('data', (d) => (out += d.toString('utf8')));
+      child.stderr.on('data', (d) => {
+        const texte = d.toString('utf8');
+        out += texte;
+        if (/error while loading|cannot open shared object|not found/i.test(texte)) {
+          this.startupError = texte.trim().split(/\r?\n/)[0];
+        }
+      });
       child.on('close', done);
       child.on('error', done);
       setTimeout(done, 5000);

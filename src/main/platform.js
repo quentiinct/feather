@@ -21,9 +21,12 @@ function exeName(base) {
 
 /**
  * Variables d'environnement pour lancer un binaire livré avec ses bibliothèques
- * à côté de lui. Sous Windows le chargeur regarde le dossier de l'exécutable ;
- * ailleurs il faut le lui dire, sinon `libwhisper.so` reste introuvable alors
- * qu'elle est dans le même dossier.
+ * à côté de lui.
+ *
+ * Les archives publiées par whisper.cpp portent un RUNPATH `$ORIGIN` et se
+ * suffisent donc à elles-mêmes. Ce n'est pas garanti d'un build compilé
+ * ailleurs — et whisper.binDir existe précisément pour en désigner un — d'où
+ * cette ceinture en plus des bretelles.
  */
 function libraryEnv(binDir, base = process.env) {
   if (IS_WIN) return base;

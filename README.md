@@ -85,6 +85,11 @@ use it.
 until you grant Feather access under System Settings → Privacy & Security →
 Accessibility, both the shortcut and the typing stay silent.
 
+**Linux needs libgomp1.** The published engine links against the GNU OpenMP
+runtime and does not bundle it — most desktop installs already have it, minimal ones
+do not, and the symptom is an engine that starts and says nothing. Feather now reports
+the missing library by name instead of claiming whisper.cpp is not installed.
+
 **Linux needs one small tool** for the keystroke itself: `xdotool` under X11 (the
 `.deb` recommends it), `wtype` or `ydotool` under Wayland. Without it the text still
 lands in your clipboard, ready to paste by hand.
@@ -122,7 +127,7 @@ checks for an existing whisper.cpp instead, because upstream ships no macOS bina
 
 ```bash
 brew install whisper-cpp        # macOS: the engine Feather will use
-sudo apt install xdotool        # Linux/X11: the keystroke tool
+sudo apt install libgomp1 xdotool   # Linux: engine runtime + keystroke tool
 ```
 
 Flags:
