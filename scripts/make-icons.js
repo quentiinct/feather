@@ -408,11 +408,16 @@ function main() {
 
   // Toutes les tailles que Windows demande réellement : sans correspondance
   // exacte il réduit la plus proche, et le trait s'empâte.
-  const sizes = [256, 128, 64, 48, 40, 32, 24, 20, 16];
+  const sizes = [512, 256, 128, 64, 48, 40, 32, 24, 20, 16];
   const pngs = sizes.map((size) => ({ size, buffer: encodePng(drawAppIcon(size), size) }));
 
+  // Le PNG sert d'icône sous Linux et de source à l'icns de macOS, qui exige
+  // 512 px au minimum. Le ICO, lui, s'arrête à 256 : c'est sa limite de format.
   fs.writeFileSync(path.join(ASSETS, 'icon.png'), pngs[0].buffer);
-  fs.writeFileSync(path.join(ASSETS, 'icon.ico'), encodeIco(pngs));
+  fs.writeFileSync(
+    path.join(ASSETS, 'icon.ico'),
+    encodeIco(pngs.filter((p) => p.size <= 256))
+  );
 
   // La zone de notification affiche 16 px : on rend à cette taille plutôt que
   // de laisser Electron réduire un 32 px, ce qui empâterait le trait.

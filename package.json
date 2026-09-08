@@ -2,7 +2,7 @@
   "name": "feather",
   "productName": "Feather",
   "version": "1.0.0",
-  "description": "Dictée vocale locale et instantanée pour Windows — parlez, Feather écrit dans n'importe quelle application.",
+  "description": "Dictée vocale locale et instantanée — parlez, Feather écrit dans n'importe quelle application.",
   "main": "src/main/index.js",
   "author": "Quentin Courtade",
   "license": "MIT",
@@ -12,10 +12,13 @@
     "dev": "electron . --dev",
     "setup": "node scripts/setup-whisper.js",
     "postinstall": "node scripts/make-icons.js",
-    "build": "electron-builder --win --publish never",
-    "release": "electron-builder --win --publish always",
+    "build": "electron-builder --publish never",
+    "release": "electron-builder --publish always",
     "pack": "electron-builder --dir",
-    "icons": "node scripts/make-icons.js"
+    "icons": "node scripts/make-icons.js",
+    "build:win": "electron-builder --win --publish never",
+    "build:mac": "electron-builder --mac --publish never",
+    "build:linux": "electron-builder --linux --publish never"
   },
   "dependencies": {
     "electron-updater": "^6.8.9",
@@ -78,6 +81,63 @@
         "owner": "quentiinct",
         "repo": "feather"
       }
-    ]
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.png",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Feather transcrit votre voix sur cet ordinateur pour écrire le texte dicté.",
+        "NSAppleEventsUsageDescription": "Feather envoie la frappe de collage à l'application active pour y insérer le texte."
+      }
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Utility",
+      "icon": "assets/icon.png",
+      "synopsis": "Dictée vocale locale",
+      "description": "Dictée vocale entièrement locale : un raccourci, vous parlez, le texte s'écrit dans l'application active. Transcription par whisper.cpp.",
+      "desktop": {
+        "entry": {
+          "Name": "Feather",
+          "Comment": "Dictée vocale locale",
+          "Categories": "Utility;AudioVideo;",
+          "Keywords": "dictation;speech;voice;whisper;"
+        }
+      }
+    },
+    "deb": {
+      "recommends": [
+        "xdotool"
+      ]
+    }
   }
 }

@@ -3,8 +3,12 @@
 
 /**
  * Installe les prérequis natifs de Feather :
- *   1. les binaires whisper.cpp pour Windows x64 (build CUDA si une carte NVIDIA est détectée) ;
+ *   1. les binaires whisper.cpp correspondant à la machine ;
  *   2. le modèle de transcription par défaut.
+ *
+ * Windows x64 a droit au build CUDA si une carte NVIDIA est présente ; Linux
+ * n'a qu'un build CPU publié ; macOS n'en a aucun et passe par une installation
+ * existante — Homebrew, ou une compilation maison.
  *
  * Rien de tout ça n'est versionné dans Git : ce script rend le dépôt clonable
  * et fonctionnel en une commande (`npm run setup`).
@@ -15,7 +19,13 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const { downloadFile, formatBytes, checkGgmlFile } = require('../src/main/downloader');
-const { installBinaries, detectNvidia, WHISPER_TAG } = require('../src/main/install-binaries');
+const {
+  installBinaries,
+  detectNvidia,
+  assetFor,
+  WHISPER_TAG
+} = require('../src/main/install-binaries');
+const { IS_MAC, IS_WIN, exeName, libraryEnv } = require('../src/main/platform');
 const { MODELS, modelUrl, findModel } = require('../src/shared/models');
 const { DEFAULT_CONFIG } = require('../src/shared/defaults');
 
@@ -78,14 +88,16 @@ async function installModel(modelId) {
   return dest;
 }
 
-function verify(exeName) {
+function verify(nom) {
+  const chemin = path.isAbsolute(nom) ? nom : path.join(BIN_DIR, nom);
   try {
-    const out = execFileSync(path.join(BIN_DIR, exeName), ['--help'], {
+    const out = execFileSync(chemin, ['--help'], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
-      // Le binaire doit tourner depuis son dossier pour trouver ses DLL, et
-      // la première initialisation CUDA peut prendre une bonne dizaine de secondes.
-      cwd: BIN_DIR,
+      // Le binaire doit tourner depuis son dossier pour trouver ses bibliothèques,
+      // et la première initialisation CUDA peut prendre une dizaine de secondes.
+      cwd: path.dirname(chemin),
+      env: libraryEnv(path.dirname(chemin)),
       timeout: 60000
     });
     return out.length > 0;
@@ -95,33 +107,82 @@ function verify(exeName) {
   }
 }
 
+/** Cherche un whisper.cpp déjà installé : c'est la voie normale sur macOS. */
+function findInPath(nom) {
+  const dirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  for (const dir of dirs) {
+    const candidat = path.join(dir, nom);
+    try {
+      if (fs.statSync(candidat).isFile()) return candidat;
+    } catch {
+      /* dossier du PATH inexistant */
+    }
+  }
+  return null;
+}
+
+/**
+ * macOS : la release de whisper.cpp ne contient qu'un xcframework, bon pour une
+ * application Xcode mais pas pour nous. On vérifie donc une installation
+ * existante plutôt que de télécharger quelque chose d'inutilisable.
+ */
+function checkMac() {
+  const trouve = findInPath('whisper-cli') || findInPath('main');
+  if (trouve) {
+    log('');
+    log('▸ whisper.cpp trouvé : ' + trouve);
+    log('  Rien à télécharger — Feather le prendra dans le PATH.');
+    return trouve;
+  }
+  log('');
+  log('▸ whisper.cpp introuvable');
+  log('  whisper.cpp ne publie pas de binaires pour macOS. Deux façons de faire :');
+  log('');
+  log('    brew install whisper-cpp');
+  log('');
+  log('  ou, pour un build Metal à jour :');
+  log('    git clone https://github.com/ggml-org/whisper.cpp && cd whisper.cpp');
+  log('    cmake -B build -DWHISPER_METAL=ON && cmake --build build -j --config Release');
+  log('    puis renseignez whisper.binDir dans config.json avec le dossier obtenu.');
+  return null;
+}
+
 async function main() {
   log('Feather — installation des composants natifs');
   log('════════════════════════════════════════════');
 
-  if (process.platform !== 'win32') {
-    log('⚠ Ce script cible Windows x64. Les binaires téléchargés ne fonctionneront pas ici.');
-  }
-
-  const gpu = detectNvidia();
-  const wantCuda = hasFlag('--cuda') || (!hasFlag('--cpu') && Boolean(gpu));
-  if (gpu) log('\nGPU détecté : ' + gpu + (wantCuda ? ' → build CUDA' : ' → build CPU (forcé)'));
-  else log('\nAucun GPU NVIDIA détecté → build CPU');
+  log('');
+  log('Système : ' + process.platform + '/' + process.arch);
 
   const modelId = argValue('--model', DEFAULT_CONFIG.whisper.model);
+  const noms = [exeName('whisper-cli'), exeName('main')];
 
-  let exeName;
-  if (hasFlag('--model-only')) {
-    log('\n(--model-only : les binaires ne sont pas retéléchargés)');
-    exeName = ['whisper-cli.exe', 'main.exe'].find((n) => fs.existsSync(path.join(BIN_DIR, n)));
+  let executable;
+  if (IS_MAC) {
+    executable = checkMac();
+  } else if (hasFlag('--model-only')) {
+    log('');
+    log('(--model-only : les binaires ne sont pas retéléchargés)');
+    executable = noms.find((n) => fs.existsSync(path.join(BIN_DIR, n)));
   } else {
-    exeName = await installEngine(wantCuda ? 'cuda' : 'cpu');
+    const gpu = detectNvidia();
+    // Seul Windows a un build GPU publié : ailleurs, annoncer CUDA serait faux.
+    const cudaPossible = IS_WIN && Boolean(assetFor('cuda'));
+    const wantCuda = cudaPossible && (hasFlag('--cuda') || (!hasFlag('--cpu') && Boolean(gpu)));
+    if (gpu && cudaPossible) {
+      log('GPU détecté : ' + gpu + (wantCuda ? ' → build CUDA' : ' → build CPU (forcé)'));
+    } else if (gpu) {
+      log('GPU détecté : ' + gpu + ' → build CPU (aucun build GPU publié pour ce système)');
+    } else {
+      log('Aucun GPU NVIDIA détecté → build CPU');
+    }
+    executable = await installEngine(wantCuda ? 'cuda' : 'cpu');
   }
 
   if (!hasFlag('--bin-only')) await installModel(modelId);
 
   log('\n════════════════════════════════════════════');
-  if (exeName && verify(exeName)) {
+  if (executable && verify(executable)) {
     log('✔ Installation terminée. Lancez l\'application avec : npm start');
   } else {
     log('⚠ Installation terminée, mais l\'exécutable n\'a pas répondu.');

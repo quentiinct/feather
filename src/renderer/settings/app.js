@@ -590,6 +590,10 @@ api.on('download:progress', (payload) => {
  * Raccourci
  * ------------------------------------------------------------------ */
 
+/** Le nom du système tel qu'un utilisateur l'écrirait. */
+const NOM_SYSTEME = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
+
+// La même touche physique s'appelle Windows, Command ou Super : appInfo tranche.
 const MOD_LABELS = { ctrl: 'Ctrl', shift: 'Maj', alt: 'Alt', meta: 'Win' };
 
 function renderHotkey() {
@@ -597,8 +601,11 @@ function renderHotkey() {
   setSegmented('#activation-mode', h.activation);
   $('#hold-threshold').value = h.holdThresholdMs;
 
+  if (appInfo?.metaKeyLabel) MOD_LABELS.meta = appInfo.metaKeyLabel;
+
   $$('#modifier-picker button').forEach((b) => {
     b.setAttribute('aria-pressed', String(h.modifiers.includes(b.dataset.mod)));
+    if (b.dataset.mod === 'meta') b.textContent = MOD_LABELS.meta;
   });
 
   const keys = h.modifiers.map((m) => MOD_LABELS[m] || m);
@@ -912,6 +919,8 @@ async function boot() {
 
   $('#app-version').textContent = 'V' + appInfo.version.replace(/.0$/, '');
   $('#data-path').textContent = appInfo.userData;
+  const systeme = NOM_SYSTEME[appInfo.platform];
+  if (systeme) $('#autostart-title').textContent = 'Lancer au démarrage de ' + systeme;
   $('#about-text').textContent =
     'Feather ' +
     appInfo.version +

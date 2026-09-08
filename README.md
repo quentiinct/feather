@@ -15,6 +15,7 @@ Feather is an offline alternative to [Wispr Flow](https://wisprflow.ai).
 ## Contents
 
 - [What it does](#what-it-does)
+- [Platform support](#platform-support)
 - [Requirements](#requirements)
 - [Install](#install)
 - [Using it](#using-it)
@@ -61,14 +62,43 @@ and a 30-day chart you can read as bars, a line, or a table.
 
 ---
 
+## Platform support
+
+Feather runs on Windows, macOS and Linux. What differs is how the three
+platform-specific pieces are obtained — the transcription engine, the global
+shortcut, and typing into another window.
+
+| | Windows | macOS | Linux (X11) | Linux (Wayland) |
+|---|---|---|---|---|
+| Engine | downloaded by `npm run setup` | `brew install whisper-cpp` | downloaded by `npm run setup` | same |
+| GPU | CUDA build available | Metal, via your own build | CPU build only | CPU build only |
+| Global shortcut | works | needs Accessibility permission | works | **not possible** |
+| Typing into apps | built in | needs Accessibility permission | needs `xdotool` | `wtype` or `ydotool` |
+| Auto-start | login item | login item | `~/.config/autostart` | same |
+
+**Wayland cannot work, and no application can fix it.** The protocol deliberately
+forbids a client from listening to the global keyboard or sending input to another
+window. Feather says so at launch rather than pretending. Log into an Xorg session to
+use it.
+
+**macOS asks for permission once.** The first dictation triggers the system prompt;
+until you grant Feather access under System Settings → Privacy & Security →
+Accessibility, both the shortcut and the typing stay silent.
+
+**Linux needs one small tool** for the keystroke itself: `xdotool` under X11 (the
+`.deb` recommends it), `wtype` or `ydotool` under Wayland. Without it the text still
+lands in your clipboard, ready to paste by hand.
+
+---
+
 ## Requirements
 
 | | |
 |---|---|
-| OS | Windows 10 or 11, x64 |
+| OS | Windows 10/11, macOS 12+, or Linux with an X11 session |
 | Node.js | 20 or newer, to run from source |
-| GPU | Optional. An NVIDIA card with CUDA 12 makes it roughly ten times faster |
-| Disk | ~600 MB for the CUDA build, plus 500 MB–1.5 GB per model |
+| GPU | Optional. On Windows, an NVIDIA card with CUDA 12 makes it roughly ten times faster |
+| Disk | 10 MB to 640 MB for the engine, plus 500 MB–1.5 GB per model |
 | Memory | ~2 GB of VRAM with the recommended model |
 
 Without a GPU everything still works — pick the `Small` model and expect a couple of
@@ -86,11 +116,20 @@ npm run setup     # downloads whisper.cpp and the default model
 npm start
 ```
 
-`npm run setup` detects your GPU and picks the matching build:
+`npm run setup` picks what matches your machine. On Windows it downloads the CUDA
+build when an NVIDIA card is present, on Linux the published CPU build; on macOS it
+checks for an existing whisper.cpp instead, because upstream ships no macOS binaries:
+
+```bash
+brew install whisper-cpp        # macOS: the engine Feather will use
+sudo apt install xdotool        # Linux/X11: the keystroke tool
+```
+
+Flags:
 
 | Command | Effect |
 |---|---|
-| `npm run setup` | CUDA build if an NVIDIA card is found, CPU build otherwise |
+| `npm run setup` | CUDA build if an NVIDIA card is found (Windows), CPU build otherwise |
 | `npm run setup -- --cpu` | force the CPU build (8 MB instead of 640 MB) |
 | `npm run setup -- --cuda` | force the CUDA 12.4 build |
 | `npm run setup -- --model ggml-small` | choose another model |
@@ -105,7 +144,8 @@ npm start
 | `ggml-large-v3-turbo-q5_0` | 574 MB | **Recommended.** Best quality per millisecond |
 | `ggml-large-v3-q5_0` | 1.1 GB | Highest quality; wants a GPU to stay comfortable |
 
-Models are downloaded from Hugging Face into `%APPDATA%\Feather\models\`, checked
+Models are downloaded from Hugging Face into the `models` folder of Feather's data
+directory (see [Data and privacy](#data-and-privacy)), checked
 against their expected size and GGML magic number, and written atomically — an
 interrupted download can never leave a half-file that fails later at dictation time.
 
@@ -156,8 +196,8 @@ the substitution.
    cleanup rules           fillers, stutters, spacing, capitalisation,
         │                  typography, dictionary, spoken line breaks
         ▼
-   injection               clipboard paste + Ctrl+V, through a persistent
-        │                  PowerShell SendInput helper
+   injection               clipboard paste + Ctrl+V (Cmd+V on macOS), sent by
+        │                  the platform's own keystroke tool
         ▼
    your application
 ```
@@ -185,9 +225,13 @@ stops and hands the VRAM back. The next dictation then costs one CLI round trip 
 while the model reloads. Set `whisper.serverIdleMinutes` to `0` to keep it resident
 permanently.
 
-**Injection goes through a persistent PowerShell process.** Compiling the Win32 interop
-costs about a second; paying that per dictation would be unusable. The helper starts
-once and answers in about a millisecond afterwards.
+**Injection is one interface with three backends.** The clipboard is Electron's and
+behaves identically everywhere; only the keystroke differs. Windows keeps a PowerShell
+helper alive — compiling the Win32 interop costs about a second, and paying that per
+dictation would be unusable, so it starts once and answers in a millisecond afterwards.
+macOS calls `osascript`, Linux calls `xdotool` or its Wayland equivalent; both start
+in a few milliseconds, so a process per keystroke is cheaper than a protocol to
+maintain. If any of them fails, the text stays in the clipboard rather than being lost.
 
 **The overlay is never focusable.** Anything else would receive the paste instead of
 your editor.
@@ -255,7 +299,9 @@ src/
     hotkey.js              modifier-only shortcut via a low-level hook
     whisper.js             whisper.cpp driver: server, CLI fallback, idle unload
     cleanup.js             rule-based cleanup, spoken line breaks, dictionary
-    injector.js            text insertion into the focused application
+    injector.js            clipboard handling and insertion strategy
+    keystroke.js           the keystroke itself, one backend per platform
+    platform.js            everything the three systems disagree about
     downloader.js          downloads with progress and verification
     install-binaries.js    whisper.cpp installation
     updater.js             electron-updater wiring
@@ -265,7 +311,7 @@ src/
     overlay/               floating pill shown while dictating
     settings/              settings and statistics
     fonts/                 bundled Google Sans Flex and Sansation subsets
-resources/inject.ps1       Win32 SendInput helper, kept alive
+resources/inject.ps1       Win32 SendInput helper, kept alive (Windows only)
 scripts/                   whisper.cpp setup, icon generation
 ```
 
@@ -291,10 +337,17 @@ survives at 16 px. No image dependency: the script encodes the PNG and the ICO i
 ## Building a release
 
 ```bash
-npm run build     # NSIS installer, in dist/
-npm run pack      # unpacked directory, for a quick check
-npm run release   # build and publish to GitHub Releases
+npm run build         # installer for the system you are on, in dist/
+npm run build:win     # NSIS installer
+npm run build:mac     # dmg + zip, arm64 and x64
+npm run build:linux   # AppImage + deb
+npm run pack          # unpacked directory, for a quick check
+npm run release       # build and publish to GitHub Releases
 ```
+
+Each installer has to be built on its own system: electron-builder can only sign and
+package for the platform it runs on. macOS builds are unsigned unless you supply a
+Developer ID, so a first launch needs a right-click → Open.
 
 Updates go through `electron-updater` against GitHub Releases: the app checks at launch
 and every six hours, downloads in the background, notifies you, and installs on quit —
@@ -308,7 +361,15 @@ public.
 No network call is made during normal operation. The only outbound requests Feather ever
 makes are the model downloads you trigger and the update check.
 
-Everything is stored in `%APPDATA%\Feather\` (**Général → Ouvrir** opens it):
+Everything is stored in Feather's data directory — **Général → Ouvrir** opens it,
+whichever system you are on:
+
+| | |
+|---|---|
+| Windows | `%APPDATA%\Feather\` |
+| macOS | `~/Library/Application Support/Feather/` |
+| Linux | `~/.config/Feather/` |
+
 
 | File | Contents |
 |---|---|

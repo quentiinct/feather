@@ -1,38 +1,31 @@
 'use strict';
 
-const path = require('path');
-const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
+const { createKeystroke } = require('./keystroke');
 
 /**
  * Injecte le texte transcrit dans l'application qui a le focus.
  *
  * Deux stratégies :
- *  - `paste` : on place le texte dans le presse-papiers et on envoie Ctrl+V.
- *    Instantané quelle que soit la longueur, mais touche au presse-papiers
- *    (on le restaure juste après).
- *  - `type`  : frappe Unicode caractère par caractère. Ne touche à rien, marche
- *    dans les champs qui refusent le collage, mais plus lent sur un long texte.
+ *  - `paste` : on place le texte dans le presse-papiers et on envoie Ctrl+V
+ *    (Cmd+V sur macOS). Instantané quelle que soit la longueur, mais touche au
+ *    presse-papiers — on le restaure juste après.
+ *  - `type`  : frappe caractère par caractère. Ne touche à rien, marche dans
+ *    les champs qui refusent le collage, mais plus lent sur un long texte.
  *
- * Le helper PowerShell est démarré une fois et gardé en vie : compiler le code
- * Win32 coûte ~1 s, on ne veut pas le payer à chaque dictée.
+ * Le presse-papiers vient d'Electron et marche partout à l'identique. Ce qui
+ * change d'un système à l'autre — envoyer une frappe à la fenêtre d'à côté —
+ * est isolé dans keystroke.js.
  */
 class Injector extends EventEmitter {
   /**
-   * @param {{scriptPath:string, clipboard?:object}} options
+   * @param {{scriptPath?:string, clipboard?:object, keystroke?:object}} options
    */
-  constructor(options) {
+  constructor(options = {}) {
     super();
-    this.scriptPath = options.scriptPath;
     this._clipboard = options.clipboard || null;
     this._clipboardItem = options.clipboardItem;
-    this.child = null;
-    this.ready = false;
-    this.starting = null;
-    this.seq = 0;
-    this.pending = new Map();
-    this.buffer = '';
-    this.lastError = null;
+    this.keys = options.keystroke || createKeystroke({ scriptPath: options.scriptPath });
   }
 
   /**
@@ -104,106 +97,15 @@ class Injector extends EventEmitter {
     }
   }
 
-  /** Démarre le helper. Idempotent : plusieurs appels partagent la même promesse. */
-  start() {
-    if (this.ready) return Promise.resolve(true);
-    if (this.starting) return this.starting;
-
-    this.starting = new Promise((resolve, reject) => {
-      let settled = false;
-      const finish = (ok, err) => {
-        if (settled) return;
-        settled = true;
-        this.starting = null;
-        if (ok) resolve(true);
-        else reject(err);
-      };
-
-      try {
-        this.child = spawn(
-          'powershell.exe',
-          ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', this.scriptPath],
-          { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] }
-        );
-      } catch (err) {
-        finish(false, new Error("impossible de lancer PowerShell : " + err.message));
-        return;
-      }
-
-      this.child.stdout.setEncoding('utf8');
-      this.child.stdout.on('data', (chunk) => {
-        this.buffer += chunk;
-        let index;
-        while ((index = this.buffer.indexOf('\n')) >= 0) {
-          const line = this.buffer.slice(0, index).replace(/\r$/, '');
-          this.buffer = this.buffer.slice(index + 1);
-          if (!line) continue;
-
-          const [id, status, info = ''] = line.split('|');
-          if (id === '0' && status === 'READY') {
-            this.ready = true;
-            this.emit('ready');
-            finish(true);
-            continue;
-          }
-          const waiter = this.pending.get(id);
-          if (!waiter) continue;
-          this.pending.delete(id);
-          clearTimeout(waiter.timer);
-          if (status === 'OK') waiter.resolve(info);
-          else waiter.reject(new Error(info || 'échec de l\'injection'));
-        }
-      });
-
-      this.child.stderr.setEncoding('utf8');
-      this.child.stderr.on('data', (d) => {
-        this.lastError = String(d).trim();
-      });
-
-      this.child.on('error', (err) => {
-        this.ready = false;
-        finish(false, err);
-      });
-
-      this.child.on('close', (code) => {
-        this.ready = false;
-        this.child = null;
-        for (const [, waiter] of this.pending) {
-          clearTimeout(waiter.timer);
-          waiter.reject(new Error('helper d\'injection arrêté'));
-        }
-        this.pending.clear();
-        this.emit('closed', code);
-        finish(false, new Error('helper arrêté au démarrage (code ' + code + ') ' + (this.lastError || '')));
-      });
-
-      setTimeout(() => {
-        finish(false, new Error("le helper d'injection n'a pas répondu à temps"));
-      }, 20000);
-    });
-
-    return this.starting;
-  }
-
-  _send(cmd, payload = '', timeoutMs = 15000) {
-    return new Promise((resolve, reject) => {
-      if (!this.child || !this.ready) {
-        reject(new Error("helper d'injection indisponible"));
-        return;
-      }
-      const id = String(++this.seq);
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        reject(new Error('délai dépassé sur la commande ' + cmd));
-      }, timeoutMs);
-      this.pending.set(id, { resolve, reject, timer });
-      this.child.stdin.write(id + '|' + cmd + '|' + payload + '\n');
-    });
+  async start() {
+    const ok = await this.keys.start();
+    this.emit('ready');
+    return ok;
   }
 
   async ping() {
     await this.start();
-    return this._send('PING', '', 5000);
+    return this.keys.ping();
   }
 
   /**
@@ -221,7 +123,12 @@ class Injector extends EventEmitter {
     } catch (err) {
       if (options.fallbackToClipboard !== false) {
         await this.clipboard.writeText(payload);
-        return { method: 'presse-papiers', chars: payload.length, degraded: true, reason: err.message };
+        return {
+          method: 'presse-papiers',
+          chars: payload.length,
+          degraded: true,
+          reason: err.message
+        };
       }
       throw err;
     }
@@ -231,9 +138,13 @@ class Injector extends EventEmitter {
       // Un long texte tapé caractère par caractère serait interminable : on colle
       const budgetMs = payload.length * (delay + 2);
       if (budgetMs < 4000) {
-        const b64 = Buffer.from(payload, 'utf8').toString('base64');
-        await this._send('TYPE', delay + ':' + b64, Math.max(15000, budgetMs * 2));
-        return { method: 'frappe', chars: payload.length };
+        try {
+          await this.keys.type(payload, delay, budgetMs);
+          return { method: 'frappe', chars: payload.length };
+        } catch (err) {
+          // La frappe a échoué, mais le collage passera peut-être : on continue
+          this.emit('degraded', err);
+        }
       }
     }
 
@@ -251,12 +162,17 @@ class Injector extends EventEmitter {
     await new Promise((r) => setTimeout(r, 30));
 
     try {
-      await this._send('PASTE', '', 8000);
+      await this.keys.paste();
     } catch (err) {
       if (options.fallbackToClipboard !== false) {
         // On laisse volontairement le texte dans le presse-papiers : l'utilisateur
         // le collera lui-même. Le restaurer ici lui reprendrait sa dictée.
-        return { method: 'presse-papiers', chars: payload.length, degraded: true, reason: err.message };
+        return {
+          method: 'presse-papiers',
+          chars: payload.length,
+          degraded: true,
+          reason: err.message
+        };
       }
       if (restoring) await this._restoreClipboard(snapshot);
       throw err;
@@ -274,22 +190,11 @@ class Injector extends EventEmitter {
   }
 
   stop() {
-    if (!this.child) return;
-    try {
-      this.child.stdin.write('0|QUIT|\n');
-    } catch {
-      /* stdin déjà fermé */
-    }
-    const child = this.child;
-    setTimeout(() => {
-      if (child && !child.killed) child.kill();
-    }, 1000);
-    this.child = null;
-    this.ready = false;
+    this.keys.stop();
   }
 
   status() {
-    return { ready: this.ready, lastError: this.lastError };
+    return this.keys.status();
   }
 }
 

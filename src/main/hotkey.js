@@ -1,6 +1,7 @@
 'use strict';
 
 const { EventEmitter } = require('events');
+const { metaKeyLabel } = require('./platform');
 
 /**
  * Détection du raccourci global.
@@ -251,7 +252,7 @@ class HotkeyManager extends EventEmitter {
   /** Libellé lisible du raccourci courant, pour l'interface et le tray. */
   describe() {
     if (!this.config) return '—';
-    const labels = { ctrl: 'Ctrl', shift: 'Maj', alt: 'Alt', meta: 'Win' };
+    const labels = { ctrl: 'Ctrl', shift: 'Maj', alt: 'Alt', meta: metaKeyLabel() };
     return (this.config.modifiers || []).map((m) => labels[m] || m).join(' + ');
   }
 }

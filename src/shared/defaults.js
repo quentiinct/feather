@@ -41,6 +41,10 @@ const DEFAULT_CONFIG = {
     threads: 0,
     // Accélération GPU CUDA si le build cuBLAS est installé
     useGpu: true,
+    // Dossier des exécutables whisper.cpp. Vide = celui livré avec Feather.
+    // Indispensable sur macOS, où whisper.cpp ne publie pas de binaires, et
+    // utile sous Linux pour pointer un build GPU compilé soi-même.
+    binDir: '',
     // Minutes sans dictée avant de libérer la mémoire vidéo. La reprise coûte
     // une dictée passée par le CLI (~2 s) pendant que le modèle recharge.
     // 0 garde le modèle chargé en permanence, pour n'avoir jamais à le repayer.

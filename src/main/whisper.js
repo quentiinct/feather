@@ -5,6 +5,7 @@ const os = require('os');
 const net = require('net');
 const path = require('path');
 const { spawn } = require('child_process');
+const { exeName, libraryEnv } = require('./platform');
 
 /** Délai de garde avant de retenter le serveur après un démarrage raté. */
 const SERVER_RETRY_MS = 60000;
@@ -23,9 +24,9 @@ const SERVER_WAIT_MS = 2500;
  *
  * Deux chemins, dans cet ordre :
  *
- *  1. `whisper-server.exe`, gardé vivant. Le modèle reste chargé en mémoire vidéo,
+ *  1. `whisper-server`, gardé vivant. Le modèle reste chargé en mémoire vidéo,
  *     et une dictée de huit secondes revient en ~220 ms.
- *  2. `whisper-cli.exe` en repli. Correct, mais chaque appel recharge le modèle —
+ *  2. `whisper-cli` en repli. Correct, mais chaque appel recharge le modèle —
  *     environ deux secondes pour un large-v3-turbo quantifié.
  *
  * Le repli n'est pas décoratif : si le port est pris, si le serveur meurt ou si
@@ -100,7 +101,7 @@ class WhisperEngine {
 
   /** Emplacements possibles de l'exécutable, du plus spécifique au plus générique. */
   _candidateBinaries() {
-    const names = ['whisper-cli.exe', 'main.exe', 'whisper-cli', 'main'];
+    const names = [exeName('whisper-cli'), exeName('main')];
     const dirs = [this.binDir, path.join(this.binDir, 'Release'), path.join(this.binDir, 'bin')];
     const out = [];
     for (const dir of dirs) {
@@ -109,9 +110,31 @@ class WhisperEngine {
     return out;
   }
 
+  /**
+   * whisper.cpp ne publie pas d'exécutables pour macOS : là-bas, l'installation
+   * vient de Homebrew ou d'une compilation maison, et se trouve dans le PATH.
+   * On l'accepte plutôt que d'exiger une copie dans le dossier de l'application.
+   */
+  _fromPath(name) {
+    const dirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+    for (const dir of dirs) {
+      const candidate = path.join(dir, name);
+      try {
+        if (fs.statSync(candidate).isFile()) return candidate;
+      } catch {
+        /* dossier du PATH inexistant */
+      }
+    }
+    return null;
+  }
+
   findBinary() {
     for (const candidate of this._candidateBinaries()) {
       if (fs.existsSync(candidate)) return candidate;
+    }
+    for (const name of [exeName('whisper-cli'), exeName('main')]) {
+      const found = this._fromPath(name);
+      if (found) return found;
     }
     return null;
   }
@@ -129,8 +152,10 @@ class WhisperEngine {
         return { ready: false, reason: 'binaire-absent' };
       }
 
-      const serverCandidate = path.join(path.dirname(this.binary), 'whisper-server.exe');
-      this.serverBinary = fs.existsSync(serverCandidate) ? serverCandidate : null;
+      const serverCandidate = path.join(path.dirname(this.binary), exeName('whisper-server'));
+      this.serverBinary = fs.existsSync(serverCandidate)
+        ? serverCandidate
+        : this._fromPath(exeName('whisper-server'));
 
       const help = await this._runHelp();
       this.flags = new Set(help.match(/(?:^|\s)(--?[a-z0-9][a-z0-9-]*)/gi)?.map((s) => s.trim()) || []);
@@ -139,11 +164,13 @@ class WhisperEngine {
       const siblings = fs.existsSync(path.dirname(this.binary))
         ? fs.readdirSync(path.dirname(this.binary))
         : [];
-      this.buildKind = siblings.some((f) => /^(cublas|cudart|cublasLt)/i.test(f))
+      this.buildKind = siblings.some((f) => /^(cublas|cudart|cublasLt|libcublas|libcudart)/i.test(f))
         ? 'cuda'
         : siblings.some((f) => /openblas/i.test(f))
           ? 'blas'
-          : 'cpu';
+          : siblings.some((f) => /ggml-metal/i.test(f))
+            ? 'metal'
+            : 'cpu';
 
       return { ready: true, binary: this.binary, buildKind: this.buildKind };
     })();
@@ -153,7 +180,10 @@ class WhisperEngine {
   _runHelp() {
     return new Promise((resolve) => {
       let out = '';
-      const child = spawn(this.binary, ['--help'], { windowsHide: true });
+      const child = spawn(this.binary, ['--help'], {
+        windowsHide: true,
+        env: libraryEnv(path.dirname(this.binary))
+      });
       const done = () => resolve(out);
       child.stdout.on('data', (d) => (out += d.toString('utf8')));
       child.stderr.on('data', (d) => (out += d.toString('utf8')));
@@ -375,7 +405,8 @@ class WhisperEngine {
 
       const child = spawn(this.serverBinary, args, {
         windowsHide: true,
-        cwd: path.dirname(this.serverBinary)
+        cwd: path.dirname(this.serverBinary),
+        env: libraryEnv(path.dirname(this.serverBinary))
       });
       this.server = child;
       this.serverPort = port;
@@ -556,7 +587,8 @@ class WhisperEngine {
     return new Promise((resolve, reject) => {
       const child = spawn(this.binary, args, {
         windowsHide: true,
-        cwd: path.dirname(this.binary)
+        cwd: path.dirname(this.binary),
+        env: libraryEnv(path.dirname(this.binary))
       });
       this.current = child;
 

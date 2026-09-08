@@ -24,6 +24,7 @@ const { Injector } = require('./injector');
 const { cleanup } = require('./cleanup');
 const { downloadFile, checkGgmlFile } = require('./downloader');
 const { setupUpdater } = require('./updater');
+const { IS_WIN, IS_MAC, IS_LINUX, isWayland, metaKeyLabel } = require('./platform');
 const { MODELS, modelUrl, findModel } = require('../shared/models');
 
 const IS_DEV = process.argv.includes('--dev');
@@ -34,9 +35,13 @@ const BIN_DIR = app.isPackaged ? path.join(process.resourcesPath, 'bin') : path.
 const MODELS_DIR = path.join(app.getPath('userData'), 'models');
 const BUNDLED_MODELS_DIR = path.join(ROOT, 'resources', 'models');
 const TMP_DIR = path.join(os.tmpdir(), 'feather');
-const INJECT_SCRIPT = app.isPackaged
-  ? path.join(process.resourcesPath, 'app.asar.unpacked', 'resources', 'inject.ps1')
-  : path.join(ROOT, 'resources', 'inject.ps1');
+/** Le helper d'injection n'existe que sous Windows ; ailleurs, keystroke.js
+ *  appelle un outil du système et n'a besoin d'aucun script. */
+const INJECT_SCRIPT = !IS_WIN
+  ? null
+  : app.isPackaged
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'resources', 'inject.ps1')
+    : path.join(ROOT, 'resources', 'inject.ps1');
 
 fs.mkdirSync(TMP_DIR, { recursive: true });
 fs.mkdirSync(MODELS_DIR, { recursive: true });
@@ -131,14 +136,54 @@ ipcMain.on('rpc:response', (_event, payload) => {
 
 const PRELOAD = path.join(__dirname, '..', 'preload', 'bridge.js');
 
+/**
+ * Démarrage automatique sous Linux.
+ *
+ * Il n'y a pas d'API : la convention freedesktop veut un fichier .desktop dans
+ * ~/.config/autostart, que GNOME, KDE et les autres lisent au démarrage de la
+ * session. On écrit donc le fichier nous-mêmes, en visant l'exécutable réel —
+ * l'AppImage si l'application en est une, sinon le binaire Electron.
+ */
+function setLinuxAutostart(enabled) {
+  const dossier = path.join(app.getPath('home'), '.config', 'autostart');
+  const fichier = path.join(dossier, 'feather.desktop');
+  try {
+    if (!enabled) {
+      fs.rmSync(fichier, { force: true });
+      return false;
+    }
+    const cible = process.env.APPIMAGE || app.getPath('exe');
+    fs.mkdirSync(dossier, { recursive: true });
+    fs.writeFileSync(
+      fichier,
+      [
+        '[Desktop Entry]',
+        'Type=Application',
+        'Name=Feather',
+        'Comment=Dictée vocale locale',
+        'Exec=' + JSON.stringify(cible) + ' --minimized',
+        'Icon=feather',
+        'Terminal=false',
+        'X-GNOME-Autostart-enabled=true',
+        ''
+      ].join('\n')
+    );
+    return true;
+  } catch (err) {
+    log('démarrage automatique :', err.message);
+    return false;
+  }
+}
+
 let cachedAppIcon = null;
 
 /** Icône de fenêtre, donc de barre des tâches. Chargée une fois. */
 function appIcon() {
   if (cachedAppIcon) return cachedAppIcon;
   // Le .ico embarque toutes les tailles : Windows pioche celle qu'il lui faut
-  // selon la mise à l'échelle de l'écran, plutôt que de rééchantillonner.
-  for (const name of ['icon.ico', 'icon.png']) {
+  // selon la mise à l'échelle de l'écran, plutôt que de rééchantillonner. macOS
+  // et Linux ne le lisent pas, et attendent un PNG.
+  for (const name of IS_WIN ? ['icon.ico', 'icon.png'] : ['icon.png', 'icon.ico']) {
     const file = path.join(ROOT, 'assets', name);
     if (!fs.existsSync(file)) continue;
     const image = nativeImage.createFromPath(file);
@@ -299,6 +344,7 @@ function createSettingsWindow() {
 let lightTaskbar = null;
 
 function readTaskbarTheme() {
+  if (!IS_WIN) return !nativeTheme.shouldUseDarkColors;
   try {
     const out = require('child_process').execFileSync(
       'reg',
@@ -330,7 +376,13 @@ function trayImage(active) {
   const file = path.join(ROOT, 'assets', 'tray-' + tone + '.png');
   // Les fichiers sont déjà rendus à 16 px, la taille qu'affiche la zone de
   // notification : les redimensionner ne ferait qu'empâter le trait.
-  return fs.existsSync(file) ? nativeImage.createFromPath(file) : nativeImage.createEmpty();
+  if (!fs.existsSync(file)) return nativeImage.createEmpty();
+  const image = nativeImage.createFromPath(file);
+  // macOS recolore lui-même une image « template » selon la barre de menus,
+  // claire ou sombre — sauf celle de la dictée en cours, dont le rouge est le
+  // seul indice qu'un micro est ouvert.
+  if (IS_MAC && !active) image.setTemplateImage(true);
+  return image;
 }
 
 function buildTrayMenu() {
@@ -645,6 +697,9 @@ function registerIpcHandlers() {
     modelsDir: MODELS_DIR,
     binDir: BIN_DIR,
     models: MODELS,
+    platform: process.platform,
+    metaKeyLabel: metaKeyLabel(),
+    wayland: isWayland(),
     repository: 'https://github.com/quentiinct/feather'
   }));
 
@@ -664,6 +719,9 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('app:setLaunchAtLogin', (_event, enabled) => {
+    // Sous Linux, le démarrage automatique est un fichier .desktop dans
+    // ~/.config/autostart : Electron ne sait pas l'écrire, on s'en charge.
+    if (IS_LINUX) return setLinuxAutostart(Boolean(enabled));
     app.setLoginItemSettings({
       openAtLogin: Boolean(enabled),
       args: ['--minimized']
@@ -710,6 +768,17 @@ function wireHotkey() {
     notify('Raccourci indisponible : ' + err.message, 'error');
   });
 
+  // Wayland interdit par protocole d'écouter le clavier global et d'injecter
+  // des frappes ailleurs. Aucun contournement côté application : autant le dire.
+  if (isWayland()) {
+    log('session Wayland : raccourci global et injection indisponibles');
+    notify(
+      'Session Wayland : le raccourci global ne peut pas fonctionner. Ouvrez une ' +
+        'session X11 (Xorg) pour utiliser Feather.',
+      'error'
+    );
+  }
+
   hotkey.start(config.get('hotkey'));
 }
 
@@ -740,7 +809,7 @@ if (!gotLock) {
     // Deux emplacements : ce que l'application télécharge (dossier utilisateur)
     // et ce que « npm run setup » a posé dans le dépôt. Les deux restent valides.
     whisper = new WhisperEngine({
-      binDir: BIN_DIR,
+      binDir: config.get('whisper.binDir') || BIN_DIR,
       modelsDirs: [MODELS_DIR, BUNDLED_MODELS_DIR],
       tmpDir: TMP_DIR
     });
