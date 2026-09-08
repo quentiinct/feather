@@ -16,7 +16,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { spawnSync } = require('child_process');
 
 const { downloadFile, formatBytes, checkGgmlFile } = require('../src/main/downloader');
 const {
@@ -88,23 +88,31 @@ async function installModel(modelId) {
   return dest;
 }
 
+/**
+ * Le binaire répond-il ?
+ *
+ * `whisper-cli --help` écrit la totalité de son aide sur **stderr** et sort
+ * avec le code 0. Ne regarder que stdout faisait donc passer toute
+ * installation saine pour un échec, et affichait un avertissement à chaque
+ * `npm run setup` — de quoi faire croire à une panne qui n'existait pas.
+ *
+ * On lit les deux flux, et on ignore le code de sortie : il varie d'une version
+ * de whisper.cpp à l'autre. Ce qu'on veut savoir tient en une question — le
+ * binaire s'est-il chargé assez pour dire quelque chose ?
+ */
 function verify(nom) {
   const chemin = path.isAbsolute(nom) ? nom : path.join(BIN_DIR, nom);
-  try {
-    const out = execFileSync(chemin, ['--help'], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      // Le binaire doit tourner depuis son dossier pour trouver ses bibliothèques,
-      // et la première initialisation CUDA peut prendre une dizaine de secondes.
-      cwd: path.dirname(chemin),
-      env: libraryEnv(path.dirname(chemin)),
-      timeout: 60000
-    });
-    return out.length > 0;
-  } catch (err) {
-    // whisper-cli renvoie un code non nul sur --help selon les versions
-    return Boolean(err.stdout || err.stderr);
-  }
+  const res = spawnSync(chemin, ['--help'], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    // Le binaire doit tourner depuis son dossier pour trouver ses bibliothèques,
+    // et la première initialisation CUDA peut prendre une dizaine de secondes.
+    cwd: path.dirname(chemin),
+    env: libraryEnv(path.dirname(chemin)),
+    timeout: 60000
+  });
+  if (res.error) return false;
+  return ((res.stdout || '') + (res.stderr || '')).trim().length > 0;
 }
 
 /** Cherche un whisper.cpp déjà installé : c'est la voie normale sur macOS. */
