@@ -1,295 +1,303 @@
+<img src="assets/feather-pixel.png" alt="Feather" width="128" />
+
 # Feather
 
-Hold a shortcut, speak, and the text lands in whatever window has focus — your editor,
-your browser, a chat box, a search field. Transcription runs entirely on your machine
-through [whisper.cpp](https://github.com/ggml-org/whisper.cpp). No account, no API key,
-no audio ever leaves the computer.
+Vous maintenez un raccourci, vous parlez, et le texte s'écrit dans la fenêtre qui a le
+focus — votre éditeur, votre navigateur, une conversation, un champ de recherche. La
+transcription tourne entièrement sur votre machine, avec
+[whisper.cpp](https://github.com/ggml-org/whisper.cpp). Aucun compte, aucune clé d'API,
+aucun octet d'audio ne quitte l'ordinateur.
 
-Feather is an offline alternative to [Wispr Flow](https://wisprflow.ai).
-
-> The interface is in French, and the default transcription language is French. Whisper
-> itself is multilingual — change the language under **Transcription**.
+Feather est une alternative hors ligne à [Wispr Flow](https://wisprflow.ai).
 
 ---
 
-## Contents
+## Sommaire
 
-- [What it does](#what-it-does)
-- [Platform support](#platform-support)
-- [Requirements](#requirements)
-- [Install](#install)
-- [Using it](#using-it)
-- [How it works](#how-it-works)
-- [Performance](#performance)
+- [Ce que ça fait](#ce-que-ça-fait)
+- [Systèmes pris en charge](#systèmes-pris-en-charge)
+- [Prérequis](#prérequis)
+- [Installation](#installation)
+- [Utilisation](#utilisation)
+- [Fonctionnement](#fonctionnement)
+- [Performances](#performances)
 - [Configuration](#configuration)
 - [Architecture](#architecture)
-- [Building a release](#building-a-release)
-- [Data and privacy](#data-and-privacy)
-- [License](#license)
+- [Construire une version](#construire-une-version)
+- [Données et vie privée](#données-et-vie-privée)
+- [Licence](#licence)
 
 ---
 
-## What it does
+## Ce que ça fait
 
-**One shortcut, anywhere.** Two modifier keys — `Ctrl + Shift` by default, any pair of
-Ctrl / Shift / Alt / Win. Tap to start and tap again to stop, or hold them down for
-push-to-talk. It coexists with your existing shortcuts: press a third key on top
-(`Ctrl + Shift + T`) and Feather cancels silently without writing anything.
+**Un raccourci, partout.** Deux modificateurs — `Ctrl + Maj` par défaut, au choix parmi
+Ctrl, Maj, Alt et la touche Windows. Un appui bref démarre puis arrête, un appui
+maintenu fonctionne en talkie-walkie. Il cohabite avec vos raccourcis habituels : si une
+troisième touche arrive dans la foulée (`Ctrl + Maj + T`), Feather annule sans rien
+écrire.
 
-**Local, fast transcription.** whisper.cpp with CUDA acceleration when an NVIDIA card is
-present. The model stays resident in video memory between dictations, so a phrase comes
-back in roughly 200 ms rather than the two seconds a cold model load would cost.
+**Transcription locale et rapide.** whisper.cpp, avec accélération CUDA si une carte
+NVIDIA est présente. Le modèle reste chargé en mémoire vidéo entre deux dictées : une
+phrase revient en 200 ms environ, au lieu des deux secondes que coûterait un
+rechargement.
 
-**Speech turned into writing.** Whisper is faithful, but speech is not prose. Feather
-strips fillers and stutters, fixes spacing and capitalisation, applies French typography
-rules, and runs your personal dictionary over the proper nouns and jargon it keeps
-getting wrong.
+**De l'oral, pas de l'écrit.** Whisper est fidèle, mais on ne parle pas comme on écrit.
+Feather supprime les hésitations et les répétitions, corrige l'espacement et les
+majuscules, applique la typographie française, et passe votre dictionnaire personnel sur
+les noms propres et le jargon qu'il écrit mal.
 
-**Spoken line breaks.** Say *« à la ligne »*, *« nouveau paragraphe »* or *« point à la
-ligne »* and you get a real line break instead of the words.
+**Sauts de ligne dictés.** Dites *« à la ligne »*, *« nouveau paragraphe »* ou *« point à
+la ligne »*, et vous obtenez un vrai saut de ligne au lieu des mots.
 
-**Text delivered anywhere.** Clipboard paste by default, with your previous clipboard
-contents restored immediately afterwards; per-character Unicode typing as a fallback for
-fields that refuse pastes.
+**Le texte arrive partout.** Collage par le presse-papiers par défaut, avec restauration
+immédiate de son contenu précédent ; frappe Unicode caractère par caractère en repli,
+pour les champs qui refusent le collage.
 
-**Feedback that stays out of the way.** A floating pill shows the input level and a
-timer while you speak, and two short tones mark the start and end of a recording. The
-pill never takes focus — a window that stole focus would receive the paste instead of
-your editor.
+**Un retour discret.** Une pastille flottante affiche le niveau d'entrée et un
+chronomètre pendant que vous parlez, et deux brefs bips marquent le début et la fin. La
+pastille ne prend jamais le focus — une fenêtre qui le prendrait recevrait le collage à
+la place de votre éditeur.
 
-**Statistics.** Words dictated, time saved versus typing, speaking rate, daily streak,
-and a 30-day chart you can read as bars, a line, or a table.
+**Statistiques.** Mots dictés, temps gagné par rapport au clavier, débit de parole, série
+de jours consécutifs, et un graphique sur 30 jours en barres, en ligne ou en tableau.
 
 ---
 
-## Platform support
+## Systèmes pris en charge
 
-Feather runs on Windows, macOS and Linux. What differs is how the three
-platform-specific pieces are obtained — the transcription engine, the global
-shortcut, and typing into another window.
+Feather fonctionne sous Windows, macOS et Linux. Ce qui change d'un système à l'autre,
+c'est la façon d'obtenir les trois pièces qui ne sont pas portables : le moteur de
+transcription, le raccourci global, et l'écriture dans une autre fenêtre.
 
 | | Windows | macOS | Linux (X11) | Linux (Wayland) |
 |---|---|---|---|---|
-| Engine | downloaded by `npm run setup` | `brew install whisper-cpp` | downloaded by `npm run setup` | same |
-| GPU | CUDA build available | Metal, via your own build | CPU build only | CPU build only |
-| Global shortcut | works | needs Accessibility permission | works | **not possible** |
-| Typing into apps | built in | needs Accessibility permission | needs `xdotool` | `wtype` or `ydotool` |
-| Auto-start | login item | login item | `~/.config/autostart` | same |
+| Moteur | téléchargé par `npm run setup` | `brew install whisper-cpp` | téléchargé par `npm run setup` | idem |
+| GPU | build CUDA disponible | Metal, via votre propre build | build CPU seulement | build CPU seulement |
+| Raccourci global | fonctionne | autorisation d'accessibilité | fonctionne | **impossible** |
+| Écriture dans les applications | intégrée | autorisation d'accessibilité | nécessite `xdotool` | `wtype` ou `ydotool` |
+| Démarrage automatique | élément d'ouverture | élément d'ouverture | `~/.config/autostart` | idem |
 
-**Wayland cannot work, and no application can fix it.** The protocol deliberately
-forbids a client from listening to the global keyboard or sending input to another
-window. Feather says so at launch rather than pretending. Log into an Xorg session to
-use it.
+**Wayland ne peut pas fonctionner, et aucune application n'y changera rien.** Le
+protocole interdit délibérément à un client d'écouter le clavier global ou d'envoyer des
+frappes à une autre fenêtre. Feather le dit au démarrage plutôt que de faire semblant.
+Ouvrez une session Xorg pour l'utiliser.
 
-**macOS asks for permission once.** The first dictation triggers the system prompt;
-until you grant Feather access under System Settings → Privacy & Security →
-Accessibility, both the shortcut and the typing stay silent.
+**macOS demande une autorisation, une fois.** La première dictée déclenche la demande
+système ; tant que Feather n'a pas accès dans Réglages Système → Confidentialité et
+sécurité → Accessibilité, le raccourci comme la frappe restent muets.
 
-**Linux needs libgomp1.** The published engine links against the GNU OpenMP
-runtime and does not bundle it — most desktop installs already have it, minimal ones
-do not, and the symptom is an engine that starts and says nothing. Feather now reports
-the missing library by name instead of claiming whisper.cpp is not installed.
+**Linux a besoin de libgomp1.** Le moteur publié se lie à la bibliothèque OpenMP de GNU
+sans l'embarquer. La plupart des installations de bureau l'ont déjà, les installations
+minimales non, et le symptôme est un moteur qui démarre et ne dit rien. Feather nomme
+désormais la bibliothèque manquante au lieu de prétendre que whisper.cpp n'est pas
+installé.
 
-**Linux needs one small tool** for the keystroke itself: `xdotool` under X11 (the
-`.deb` recommends it), `wtype` or `ydotool` under Wayland. Without it the text still
-lands in your clipboard, ready to paste by hand.
+**Linux a besoin d'un petit outil** pour la frappe elle-même : `xdotool` sous X11 (le
+paquet `.deb` le recommande), `wtype` ou `ydotool` sous Wayland. Sans lui, le texte
+atterrit quand même dans le presse-papiers, prêt à être collé à la main.
 
 ---
 
-## Requirements
+## Prérequis
 
 | | |
 |---|---|
-| OS | Windows 10/11, macOS 12+, or Linux with an X11 session |
-| Node.js | 20 or newer, to run from source |
-| GPU | Optional. On Windows, an NVIDIA card with CUDA 12 makes it roughly ten times faster |
-| Disk | 10 MB to 640 MB for the engine, plus 500 MB–1.5 GB per model |
-| Memory | ~2 GB of VRAM with the recommended model |
+| Système | Windows 10/11, macOS 12+, ou Linux en session X11 |
+| Node.js | 20 ou plus récent, pour lancer depuis les sources |
+| GPU | Facultatif. Sous Windows, une carte NVIDIA avec CUDA 12 va environ dix fois plus vite |
+| Disque | 10 Mo à 640 Mo pour le moteur, plus 500 Mo à 1,5 Go par modèle |
+| Mémoire | ~2 Go de mémoire vidéo avec le modèle recommandé |
 
-Without a GPU everything still works — pick the `Small` model and expect a couple of
-seconds per phrase instead of a fraction of one.
+Sans GPU, tout fonctionne quand même : prenez le modèle `Small` et comptez deux ou trois
+secondes par phrase au lieu d'une fraction de seconde.
 
 ---
 
-## Install
+## Installation
 
 ```bash
 git clone https://github.com/quentiinct/feather.git
 cd feather
 npm install
-npm run setup     # downloads whisper.cpp and the default model
+npm run setup     # télécharge whisper.cpp et le modèle par défaut
 npm start
 ```
 
-`npm run setup` picks what matches your machine. On Windows it downloads the CUDA
-build when an NVIDIA card is present, on Linux the published CPU build; on macOS it
-checks for an existing whisper.cpp instead, because upstream ships no macOS binaries:
+`npm run setup` choisit ce qui correspond à la machine. Sous Windows il télécharge le
+build CUDA si une carte NVIDIA est présente, sous Linux le build CPU publié ; sous macOS
+il cherche une installation existante, faute de binaires publiés en amont :
 
 ```bash
-brew install whisper-cpp        # macOS: the engine Feather will use
-sudo apt install libgomp1 xdotool   # Linux: engine runtime + keystroke tool
+brew install whisper-cpp             # macOS : le moteur qu'utilisera Feather
+sudo apt install libgomp1 xdotool    # Linux : bibliothèque du moteur + outil de frappe
 ```
 
-Flags:
+Options :
 
-| Command | Effect |
+| Commande | Effet |
 |---|---|
-| `npm run setup` | CUDA build if an NVIDIA card is found (Windows), CPU build otherwise |
-| `npm run setup -- --cpu` | force the CPU build (8 MB instead of 640 MB) |
-| `npm run setup -- --cuda` | force the CUDA 12.4 build |
-| `npm run setup -- --model ggml-small` | choose another model |
-| `npm run setup -- --model-only` | re-download the model only |
+| `npm run setup` | build CUDA si une carte NVIDIA est trouvée (Windows), build CPU sinon |
+| `npm run setup -- --cpu` | force le build CPU (8 Mo au lieu de 640 Mo) |
+| `npm run setup -- --cuda` | force le build CUDA 12.4 |
+| `npm run setup -- --model ggml-small` | choisit un autre modèle |
+| `npm run setup -- --model-only` | ne retélécharge que le modèle |
 
-### Models
+### Modèles
 
-| Model | Size | Notes |
+| Modèle | Taille | Remarques |
 |---|---|---|
-| `ggml-small` | 488 MB | Sensible choice on CPU only |
-| `ggml-medium` | 1.5 GB | Accurate, slow without a GPU |
-| `ggml-large-v3-turbo-q5_0` | 574 MB | **Recommended.** Best quality per millisecond |
-| `ggml-large-v3-q5_0` | 1.1 GB | Highest quality; wants a GPU to stay comfortable |
+| `ggml-small` | 488 Mo | Le choix raisonnable sur processeur seul |
+| `ggml-medium` | 1,5 Go | Précis, lent sans GPU |
+| `ggml-large-v3-turbo-q5_0` | 574 Mo | **Recommandé.** Le meilleur rapport qualité/temps |
+| `ggml-large-v3-q5_0` | 1,1 Go | Qualité maximale ; demande un GPU pour rester confortable |
 
-Models are downloaded from Hugging Face into the `models` folder of Feather's data
-directory (see [Data and privacy](#data-and-privacy)), checked
-against their expected size and GGML magic number, and written atomically — an
-interrupted download can never leave a half-file that fails later at dictation time.
-
----
-
-## Using it
-
-| Action | Result |
-|---|---|
-| Tap both modifiers | Start recording; tap again to stop and insert |
-| Hold both modifiers | Record while held, insert on release |
-| Press a third key | Cancel — your existing shortcut goes through untouched |
-| `Esc` while recording | Discard the recording |
-| Close the window | Feather keeps running in the notification area |
-
-Feather lives in the system tray. Closing the settings window hides it rather than
-quitting; quit from the tray menu.
-
-### Spoken commands
-
-| You say | You get |
-|---|---|
-| « à la ligne », « retour à la ligne » | a line break |
-| « point à la ligne » | a full stop, then a line break |
-| « nouveau paragraphe », « nouvelle ligne » | a blank line |
-
-They are only interpreted when they stand alone as a command. "Je pense à la ligne
-budgétaire" keeps its words, because a word or a digit following the phrase suppresses
-the substitution.
+Les modèles sont téléchargés depuis Hugging Face dans le dossier `models` du répertoire
+de données de Feather (voir [Données et vie privée](#données-et-vie-privée)), vérifiés
+sur leur taille attendue et leur nombre magique GGML, puis écrits de façon atomique : un
+téléchargement interrompu ne peut jamais laisser un demi-fichier qui échouerait plus
+tard, au moment d'une dictée.
 
 ---
 
-## How it works
+## Utilisation
+
+| Action | Effet |
+|---|---|
+| Appui bref sur les deux modificateurs | Démarre l'enregistrement ; un second appui l'arrête et insère |
+| Appui maintenu | Enregistre tant que les touches sont tenues, insère au relâchement |
+| Une troisième touche | Annule — votre raccourci habituel passe intact |
+| `Échap` pendant l'enregistrement | Jette l'enregistrement |
+| Fermer la fenêtre | Feather continue dans la zone de notification |
+
+Feather vit dans la zone de notification. Fermer la fenêtre de réglages la masque au lieu
+de quitter ; on quitte depuis le menu de la zone de notification.
+
+### Commandes dictées
+
+| Vous dites | Vous obtenez |
+|---|---|
+| « à la ligne », « retour à la ligne » | un saut de ligne |
+| « point à la ligne » | un point, puis un saut de ligne |
+| « nouveau paragraphe », « nouvelle ligne » | une ligne vide |
+
+Elles ne sont interprétées que lorsqu'elles forment une commande à elles seules. « Je
+pense à la ligne budgétaire » garde ses mots, parce qu'un mot ou un chiffre qui suit la
+formule annule la substitution.
+
+---
+
+## Fonctionnement
 
 ```
-   Ctrl + Shift            uiohook-napi, low-level keyboard hook
-        │                  Electron cannot register modifier-only shortcuts
+   Ctrl + Maj              uiohook-napi, hook clavier bas niveau
+        │                  Electron ne sait pas enregistrer des modificateurs seuls
         ▼
-   hidden window           microphone stays open, 16 kHz mono PCM
-        │                  reopening it per dictation would blink the OS
-        ▼                  indicator and clip the first words
-   WAV in %TEMP%
+   fenêtre cachée          le micro reste ouvert, PCM 16 kHz mono
+        │                  le rouvrir à chaque dictée ferait clignoter l'indicateur
+        ▼                  du système et couperait les premiers mots
+   WAV temporaire
         │
         ▼
-   whisper-server          resident HTTP server, model held in VRAM
-        │   └─ fallback    whisper-cli, ~2 s, used if the server is not ready
+   whisper-server          serveur HTTP résident, modèle gardé en mémoire vidéo
+        │   └─ repli       whisper-cli, ~2 s, si le serveur n'est pas prêt
         ▼
-   cleanup rules           fillers, stutters, spacing, capitalisation,
-        │                  typography, dictionary, spoken line breaks
+   nettoyage               hésitations, répétitions, espacement, majuscules,
+        │                  typographie, dictionnaire, sauts de ligne dictés
         ▼
-   injection               clipboard paste + Ctrl+V (Cmd+V on macOS), sent by
-        │                  the platform's own keystroke tool
+   injection               collage + Ctrl+V (Cmd+V sur macOS), envoyé par
+        │                  l'outil de frappe propre au système
         ▼
-   your application
+   votre application
 ```
 
-A few decisions worth explaining:
+Quelques choix qui méritent une explication :
 
-**The shortcut uses a keyboard hook, not `globalShortcut`.** Electron cannot register a
-combination of modifiers alone. As soon as both modifiers are down, capture starts
-silently; it is only confirmed after 160 ms, which is the window in which a third key
-may still arrive and turn the gesture into an ordinary shortcut.
+**Le raccourci passe par un hook clavier, pas par `globalShortcut`.** Electron ne sait
+pas enregistrer une combinaison de modificateurs seuls. Dès que les deux touches sont
+enfoncées, la capture démarre en silence ; elle n'est confirmée qu'après 160 ms, le délai
+pendant lequel une troisième touche peut encore arriver et transformer le geste en
+raccourci ordinaire.
 
-**whisper.cpp runs as a server, not a command.** Every `whisper-cli` invocation reloads
-the model — about two seconds for `large-v3-turbo-q5`. Feather keeps `whisper-server`
-alive and posts the WAV to it over local HTTP instead. The model is preloaded at startup
-so the very first dictation is already fast.
+**whisper.cpp tourne en serveur, pas en ligne de commande.** Chaque appel à `whisper-cli`
+recharge le modèle — environ deux secondes pour un `large-v3-turbo-q5`. Feather garde
+`whisper-server` vivant et lui envoie le WAV en HTTP local. Le modèle est préchargé au
+lancement, pour que la toute première dictée soit déjà rapide.
 
-**Server startup never blocks a dictation.** Starting the server is a background task. A
-dictation waits at most 2.5 seconds for it, then takes the CLI path while the model
-finishes loading; the next dictation finds the server ready. Cold CUDA initialisation
-can take up to a minute on the first run after a reboot, and this is what keeps that
-minute invisible.
+**Le démarrage du serveur ne bloque jamais une dictée.** C'est une tâche de fond. Une
+dictée l'attend au plus 2,5 secondes, puis part sur le CLI pendant que le modèle finit de
+charger ; la suivante trouve le serveur prêt. L'initialisation de CUDA peut prendre une
+minute au premier lancement après un redémarrage, et c'est ce qui rend cette minute
+invisible.
 
-**The model is unloaded when idle.** After 30 minutes without a dictation the server
-stops and hands the VRAM back. The next dictation then costs one CLI round trip (~2 s)
-while the model reloads. Set `whisper.serverIdleMinutes` to `0` to keep it resident
-permanently.
+**Le modèle est déchargé au repos.** Après 30 minutes sans dictée, le serveur s'arrête et
+rend la mémoire vidéo. La dictée suivante coûte un aller-retour par le CLI (~2 s) le
+temps du rechargement. Mettez `whisper.serverIdleMinutes` à `0` pour le garder chargé en
+permanence.
 
-**Injection is one interface with three backends.** The clipboard is Electron's and
-behaves identically everywhere; only the keystroke differs. Windows keeps a PowerShell
-helper alive — compiling the Win32 interop costs about a second, and paying that per
-dictation would be unusable, so it starts once and answers in a millisecond afterwards.
-macOS calls `osascript`, Linux calls `xdotool` or its Wayland equivalent; both start
-in a few milliseconds, so a process per keystroke is cheaper than a protocol to
-maintain. If any of them fails, the text stays in the clipboard rather than being lost.
+**L'injection est une interface à trois implantations.** Le presse-papiers vient
+d'Electron et se comporte partout pareil ; seule la frappe change. Windows garde un
+helper PowerShell vivant — compiler l'interop Win32 coûte environ une seconde, et la
+payer à chaque dictée serait intenable, alors il démarre une fois et répond ensuite en
+une milliseconde. macOS appelle `osascript`, Linux appelle `xdotool` ou son équivalent
+Wayland ; l'un comme l'autre démarrent en quelques millisecondes, donc un processus par
+frappe coûte moins cher qu'un protocole à maintenir. Si l'un d'eux échoue, le texte reste
+dans le presse-papiers au lieu d'être perdu.
 
-**The overlay is never focusable.** Anything else would receive the paste instead of
-your editor.
+**L'overlay ne peut pas prendre le focus.** Toute autre solution le ferait recevoir le
+collage à la place de votre éditeur.
 
 ---
 
-## Performance
+## Performances
 
-Measured on an RTX 3060 (12 GB) with `large-v3-turbo-q5`, on eight seconds of speech:
+Mesuré sur une RTX 3060 (12 Go) avec `large-v3-turbo-q5`, sur huit secondes de parole :
 
-| Situation | Latency |
+| Situation | Latence |
 |---|---|
-| Server warm | 180–330 ms |
-| First dictation after an idle unload | ~1.9 s |
-| The one after that | ~180 ms |
-| First server start after a reboot | up to 80 s, in the background |
+| Serveur chaud | 180–330 ms |
+| Première dictée après un déchargement | ~1,9 s |
+| La suivante | ~180 ms |
+| Premier démarrage du serveur après un redémarrage | jusqu'à 80 s, en tâche de fond |
 
-The dominant cost on a cold machine is CUDA context creation, not Whisper itself. That
-is why the server is started at launch and then kept alive.
+Sur une machine froide, le coût dominant est la création du contexte CUDA, pas Whisper
+lui-même. C'est pour cette raison que le serveur est lancé au démarrage puis maintenu en
+vie.
 
 ---
 
 ## Configuration
 
-The settings window covers what you change day to day:
+La fenêtre de réglages couvre ce qui se change au quotidien :
 
-| Panel | Contains |
+| Section | Contenu |
 |---|---|
-| **Tableau de bord** | Statistics and the 30-day chart |
-| **Général** | Theme, overlay, sound feedback, start with Windows, updates, data folder |
-| **Raccourci** | Modifier keys, toggle or hold, hold threshold |
-| **Micro** | Input device, level meter, maximum duration, silence threshold |
-| **Transcription** | Model, language, GPU, context prompt, personal dictionary |
+| **Tableau de bord** | Statistiques et graphique sur 30 jours |
+| **Général** | Thème, overlay, retour sonore, démarrage automatique, mises à jour, dossier de données |
+| **Raccourci** | Modificateurs, bascule ou maintien, seuil de maintien |
+| **Micro** | Périphérique d'entrée, niveau, durée maximale, seuil de silence |
+| **Transcription** | Modèle, langue, GPU, amorce de contexte, dictionnaire personnel |
 
-Everything else lives in `%APPDATA%\Feather\config.json`, plain JSON merged over the
-defaults in [`src/shared/defaults.js`](src/shared/defaults.js):
+Le reste vit dans le `config.json` du répertoire de données, du JSON fusionné par-dessus
+les valeurs par défaut de [`src/shared/defaults.js`](src/shared/defaults.js) :
 
-| Key | Default | Purpose |
+| Clé | Défaut | Rôle |
 |---|---|---|
-| `output.mode` | `paste` | `type` writes character by character, for fields that refuse pastes |
-| `output.restoreClipboard` | `true` | Puts your clipboard back after pasting |
-| `output.appendSpace` | `true` | Trailing space, so dictations chain naturally |
-| `whisper.serverIdleMinutes` | `30` | `0` keeps the model in VRAM permanently |
-| `whisper.initialPrompt` | `""` | A few words of your jargon sharpen proper nouns |
-| `cleanup.rules.*` | all on | The individual cleanup passes |
-| `cleanup.mode` | `rules` | `llm` routes text through a local Ollama model; `off` disables cleanup |
-| `history.maxEntries` | `200` | Local transcript history |
-| `audio.silenceThreshold` | `0.006` | Raise it if empty dictations get through |
+| `output.mode` | `paste` | `type` écrit caractère par caractère, pour les champs qui refusent le collage |
+| `output.restoreClipboard` | `true` | Remet votre presse-papiers après le collage |
+| `output.appendSpace` | `true` | Espace finale, pour enchaîner les dictées |
+| `whisper.serverIdleMinutes` | `30` | `0` garde le modèle en mémoire vidéo indéfiniment |
+| `whisper.binDir` | `""` | Dossier des exécutables whisper.cpp ; indispensable sur macOS |
+| `whisper.initialPrompt` | `""` | Quelques mots de votre jargon améliorent les noms propres |
+| `cleanup.rules.*` | tout activé | Les passes de nettoyage, une par une |
+| `cleanup.mode` | `rules` | `llm` passe par un modèle Ollama local ; `off` désactive le nettoyage |
+| `history.maxEntries` | `200` | Historique local des transcriptions |
+| `audio.silenceThreshold` | `0.006` | À monter si des dictées vides passent |
 
-The `llm` cleanup mode has no interface. It sends the transcript to a local
-[Ollama](https://ollama.com) model for a finer rewrite — handling self-corrections like
-"Tuesday, no, Friday" — falls back to the rule-based pass on any error or timeout, and
-still costs nothing and stays offline.
+Le mode `llm` n'a pas d'interface. Il envoie la transcription à un modèle
+[Ollama](https://ollama.com) local pour une reformulation plus fine — les
+auto-corrections du type « mardi, non, vendredi » — retombe sur le nettoyage par règles à
+la moindre erreur ou au moindre dépassement de délai, et reste gratuit et hors ligne.
 
 ---
 
@@ -297,77 +305,81 @@ still costs nothing and stays offline.
 
 ```
 src/
-  main/                    Electron main process
-    index.js               lifecycle, windows, tray, dictation pipeline
-    config.js              persisted settings, merged over the defaults
-    stats.js               counters, daily series, transcript history
-    hotkey.js              modifier-only shortcut via a low-level hook
-    whisper.js             whisper.cpp driver: server, CLI fallback, idle unload
-    cleanup.js             rule-based cleanup, spoken line breaks, dictionary
-    injector.js            clipboard handling and insertion strategy
-    keystroke.js           the keystroke itself, one backend per platform
-    platform.js            everything the three systems disagree about
-    downloader.js          downloads with progress and verification
-    install-binaries.js    whisper.cpp installation
-    updater.js             electron-updater wiring
-  preload/bridge.js        IPC bridge, one explicit allowlist per direction
+  main/                    processus principal Electron
+    index.js               cycle de vie, fenêtres, zone de notification, pipeline
+    config.js              réglages persistés, fusionnés avec les défauts
+    stats.js               compteurs, séries quotidiennes, historique
+    hotkey.js              raccourci de modificateurs seuls, via un hook bas niveau
+    whisper.js             pilote whisper.cpp : serveur, repli CLI, déchargement
+    cleanup.js             nettoyage par règles, sauts de ligne dictés, dictionnaire
+    injector.js            presse-papiers et stratégie d'insertion
+    keystroke.js           la frappe elle-même, une implantation par système
+    platform.js            tout ce sur quoi les trois systèmes divergent
+    downloader.js          téléchargements avec progression et vérification
+    install-binaries.js    installation de whisper.cpp
+    updater.js             branchement d'electron-updater
+  preload/bridge.js        pont IPC, une liste d'autorisation par direction
   renderer/
-    capture/               hidden window: microphone, 16 kHz PCM, WAV encoding
-    overlay/               floating pill shown while dictating
-    settings/              settings and statistics
-    fonts/                 bundled Google Sans Flex and Sansation subsets
-resources/inject.ps1       Win32 SendInput helper, kept alive (Windows only)
-scripts/                   whisper.cpp setup, icon generation
+    capture/               fenêtre cachée : micro, PCM 16 kHz, encodage WAV
+    overlay/               pastille flottante pendant la dictée
+    settings/              réglages et statistiques
+    fonts/                 sous-ensembles Google Sans Flex et Sansation embarqués
+resources/inject.ps1       helper Win32 SendInput, gardé vivant (Windows seulement)
+scripts/                   installation de whisper.cpp, génération des icônes
 ```
 
-The renderer is sandboxed the usual way: `contextIsolation` on, `nodeIntegration` off,
-and a Content-Security-Policy that allows no remote origin at all. Fonts are bundled
-rather than fetched, for exactly that reason. Every IPC channel is listed explicitly in
-[`src/preload/bridge.js`](src/preload/bridge.js) — invoke, send and receive each have
-their own allowlist.
+Le rendu est cloisonné comme il se doit : `contextIsolation` activé, `nodeIntegration`
+désactivé, et une CSP qui n'autorise aucune origine distante. Les polices sont embarquées
+pour exactement cette raison. Chaque canal IPC est déclaré explicitement dans
+[`src/preload/bridge.js`](src/preload/bridge.js) — invoke, send et receive ont chacun
+leur liste.
 
-### Design system
+### Système graphique
 
-Three colours, applied across both themes: Coconut White `#F2F1EA`, Obsidian Ink
-`#151311`, Velvet Curfew `#4B262F`. Dark mode is authored rather than derived — its
-values are chosen separately, not flipped. Chart marks use a lighter step of the same
-hue, because Velvet Curfew sits below the readable lightness band for a data mark.
+Trois couleurs, appliquées aux deux thèmes : Coconut White `#F2F1EA`, Obsidian Ink
+`#151311`, Velvet Curfew `#4B262F`. Le thème sombre est composé, pas déduit : ses valeurs
+sont choisies séparément, pas inversées. Les marques du graphique utilisent un pas plus
+clair de la même teinte, parce que Velvet Curfew est sous la bande de luminosité lisible
+pour une donnée.
 
-Icons come from `npm run icons`, generated from a single geometry — a feather whose
-barbs are the bars of a waveform — with fewer, thicker barbs at small sizes so the shape
-survives at 16 px. No image dependency: the script encodes the PNG and the ICO itself.
+Les icônes viennent de `npm run icons`, engendrées depuis une seule géométrie — une plume
+dont les barbes sont les barres d'une forme d'onde — avec moins de barbes, plus épaisses,
+sur les petites tailles, pour que la forme survive à 16 px. Aucune dépendance graphique :
+le script encode lui-même le PNG et le ICO, ainsi que la plume en pixel art de ce fichier.
 
 ---
 
-## Building a release
+## Construire une version
 
 ```bash
-npm run build         # installer for the system you are on, in dist/
-npm run build:win     # NSIS installer
-npm run build:mac     # dmg + zip, arm64 and x64
+npm run build         # installateur pour le système courant, dans dist/
+npm run build:win     # installateur NSIS
+npm run build:mac     # dmg + zip, arm64 et x64
 npm run build:linux   # AppImage + deb
-npm run pack          # unpacked directory, for a quick check
-npm run release       # build and publish to GitHub Releases
+npm run pack          # dossier non empaqueté, pour une vérification rapide
+npm run release       # construit et publie sur GitHub Releases
 ```
 
-Each installer has to be built on its own system: electron-builder can only sign and
-package for the platform it runs on. macOS builds are unsigned unless you supply a
-Developer ID, so a first launch needs a right-click → Open.
+Chaque installateur doit être construit sur son propre système : electron-builder ne sait
+signer et empaqueter que pour la plateforme sur laquelle il tourne. Les versions macOS
+sont non signées tant que vous ne fournissez pas d'identifiant de développeur, donc le
+premier lancement demande un clic droit → Ouvrir.
 
-Updates go through `electron-updater` against GitHub Releases: the app checks at launch
-and every six hours, downloads in the background, notifies you, and installs on quit —
-nothing to reinstall by hand. This only works once the repository and its releases are
-public.
+Les mises à jour passent par `electron-updater` et GitHub Releases : l'application
+vérifie au lancement puis toutes les six heures, télécharge en tâche de fond, vous
+prévient, et installe à la fermeture. Rien à réinstaller à la main. Cela ne fonctionnera
+qu'une fois le dépôt et ses versions publics.
 
 ---
 
-## Data and privacy
+## Données et vie privée
 
-No network call is made during normal operation. The only outbound requests Feather ever
-makes are the model downloads you trigger and the update check.
+Aucun appel réseau pendant l'usage normal. Les seules requêtes sortantes que Feather
+émette sont les téléchargements de modèles que vous déclenchez et la vérification des
+mises à jour.
 
-Everything is stored in Feather's data directory — **Général → Ouvrir** opens it,
-whichever system you are on:
+Tout est stocké dans le répertoire de données — **Général → Ouvrir** l'ouvre, quel que
+soit le système :
 
 | | |
 |---|---|
@@ -375,19 +387,18 @@ whichever system you are on:
 | macOS | `~/Library/Application Support/Feather/` |
 | Linux | `~/.config/Feather/` |
 
-
-| File | Contents |
+| Fichier | Contenu |
 |---|---|
-| `config.json` | Settings |
-| `stats.json` | Counters and daily series |
-| `history.json` | Local transcript history |
-| `models/` | Downloaded GGML models |
+| `config.json` | Réglages |
+| `stats.json` | Compteurs et séries quotidiennes |
+| `history.json` | Historique local des transcriptions |
+| `models/` | Modèles GGML téléchargés |
 
-Audio is written to a temporary WAV file, handed to the local engine, and deleted
-immediately afterwards — unless you set `privacy.keepAudioFiles` for debugging.
+L'audio est écrit dans un WAV temporaire, remis au moteur local, puis supprimé
+immédiatement — sauf si vous activez `privacy.keepAudioFiles` pour du débogage.
 
 ---
 
-## License
+## Licence
 
-MIT. See [LICENSE](LICENSE).
+MIT. Voir [LICENSE](LICENSE).
