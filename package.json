@@ -4,7 +4,18 @@
   "version": "1.0.0",
   "description": "Dictée vocale locale et instantanée — parlez, Feather écrit dans n'importe quelle application.",
   "main": "src/main/index.js",
-  "author": "Quentin Courtade",
+  "author": {
+    "name": "Quentin Courtade",
+    "url": "https://github.com/quentiinct"
+  },
+  "homepage": "https://github.com/quentiinct/feather#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/quentiinct/feather.git"
+  },
+  "bugs": {
+    "url": "https://github.com/quentiinct/feather/issues"
+  },
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -17,7 +28,6 @@
     "pack": "electron-builder --dir",
     "icons": "node scripts/make-icons.js",
     "build:win": "electron-builder --win --publish never",
-    "build:mac": "electron-builder --mac --publish never",
     "build:linux": "electron-builder --linux --publish never"
   },
   "dependencies": {
@@ -31,6 +41,7 @@
   "build": {
     "appId": "com.feather.app",
     "productName": "Feather",
+    "beforePack": "./scripts/before-pack.js",
     "directories": {
       "output": "dist",
       "buildResources": "assets"
@@ -43,7 +54,10 @@
       "!**/*.map",
       "!**/*.md",
       "!assets/ChatGPT*",
-      "!assets/Gemini*"
+      "!assets/Gemini*",
+      "THIRD-PARTY-NOTICES.md",
+      "!resources/bin/**/*",
+      "!resources/models/**/*"
     ],
     "extraResources": [
       {
@@ -82,30 +96,6 @@
         "repo": "feather"
       }
     ],
-    "mac": {
-      "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "arm64",
-            "x64"
-          ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "arm64",
-            "x64"
-          ]
-        }
-      ],
-      "category": "public.app-category.productivity",
-      "icon": "assets/icon.png",
-      "extendInfo": {
-        "NSMicrophoneUsageDescription": "Feather transcrit votre voix sur cet ordinateur pour écrire le texte dicté.",
-        "NSAppleEventsUsageDescription": "Feather envoie la frappe de collage à l'application active pour y insérer le texte."
-      }
-    },
     "linux": {
       "target": [
         {
@@ -135,6 +125,18 @@
       }
     },
     "deb": {
+      "depends": [
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libuuid1",
+        "libsecret-1-0",
+        "libgomp1"
+      ],
       "recommends": [
         "xdotool"
       ]
