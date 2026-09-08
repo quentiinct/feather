@@ -403,102 +403,6 @@ function featherSvg(box = 16, sizeHint = 64) {
 
 /* ---------------------------- écriture ------------------------------- */
 
-/* ------------------------- plume en pixel art ------------------------ */
-
-/**
- * La plume du README, en pixel art.
- *
- * Rien à voir avec les icônes : ici on dessine directement sur la grille au
- * lieu de réduire un tracé. Une barbe rastérisée en diagonale devient un
- * pointillé, et la plume se lit alors comme une pluie de points ; en segments
- * horizontaux pleins, une ligne sur deux, elle se lit du premier coup d'œil.
- */
-function drawPixelFeather(cell = 6) {
-  const N = 32;
-  const TOP = 4;
-  const BOTTOM = 25;
-  const X_TIP = 24;
-  const X_QUILL = 8;
-
-  const grid = Array.from({ length: N }, () => new Array(N).fill(0));
-  const put = (x, y, v) => {
-    if (x >= 0 && y >= 0 && x < N && y < N && grid[y][x] < v) grid[y][x] = v;
-  };
-
-  const shaftX = (y) => Math.round(X_TIP + ((X_QUILL - X_TIP) * (y - TOP)) / (BOTTOM - TOP));
-
-  // Demi-largeur : nulle à la pointe, maximale aux deux tiers, refermée sur le
-  // calame. C'est cette enveloppe qui donne la silhouette.
-  const halfWidth = (y) => {
-    const t = (y - TOP) / (BOTTOM - TOP);
-    return t < 0.05 ? 0 : Math.round(Math.sin(Math.PI * t ** 0.62) * 7);
-  };
-
-  for (let y = TOP; y <= BOTTOM; y += 1) {
-    const sx = shaftX(y);
-    const half = halfWidth(y);
-    // Une ligne sur deux porte des barbes ; le vide entre elles est ce qui les
-    // rend distinctes plutôt qu'une masse pleine.
-    if (half > 0 && y % 2 === 0) {
-      for (let d = 1; d <= half; d += 1) {
-        put(sx + d, y, 1);
-        // Les barbes d'une plume ne se font pas face : le côté gauche est
-        // décalé d'une ligne.
-        put(sx - d, y + 1, 1);
-      }
-    }
-    put(sx, y, 2);
-  }
-  for (let k = 0; k < 4; k += 1) put(X_QUILL - k, BOTTOM + k, 2);
-
-  const lit = (x, y) => x >= 0 && y >= 0 && x < N && y < N && grid[y][x] !== 0;
-
-  // Recadrage sur le dessin, une case de marge, et complété en carré : notre
-  // encodeur PNG ne produit que du carré.
-  let x0 = N;
-  let y0 = N;
-  let x1 = -1;
-  let y1 = -1;
-  for (let y = 0; y < N; y += 1) {
-    for (let x = 0; x < N; x += 1) {
-      if (!grid[y][x]) continue;
-      x0 = Math.min(x0, x);
-      x1 = Math.max(x1, x);
-      y0 = Math.min(y0, y);
-      y1 = Math.max(y1, y);
-    }
-  }
-  x0 -= 1;
-  y0 -= 1;
-  x1 += 1;
-  y1 += 1;
-  const side = Math.max(x1 - x0 + 1, y1 - y0 + 1);
-  x0 -= Math.floor((side - (x1 - x0 + 1)) / 2);
-  y0 -= Math.floor((side - (y1 - y0 + 1)) / 2);
-
-  const size = side * cell;
-  const out = new Uint8Array(size * size * 4);
-  for (let y = 0; y < size; y += 1) {
-    for (let x = 0; x < size; x += 1) {
-      const sx = x0 + Math.floor(x / cell);
-      const sy = y0 + Math.floor(y / cell);
-      if (sx < 0 || sy < 0 || sx >= N || sy >= N) continue;
-      const v = grid[sy][sx];
-      if (!v) continue;
-      // Le bout de chaque barbe prend le ton sombre : le contour se dessine
-      // ainsi tout seul, sans avoir à le tracer.
-      const tip = !lit(sx + 1, sy) || !lit(sx - 1, sy);
-      const tone = v === 2 ? [242, 241, 234] : tip ? [75, 38, 47] : [157, 61, 89];
-      const i = (y * size + x) * 4;
-      out[i] = tone[0];
-      out[i + 1] = tone[1];
-      out[i + 2] = tone[2];
-      out[i + 3] = 255;
-    }
-  }
-  return { rgba: out, size };
-}
-
 function main() {
   fs.mkdirSync(ASSETS, { recursive: true });
 
@@ -523,10 +427,6 @@ function main() {
 
   // Le logo de la barre de titre sort de la même géométrie que les icônes
   fs.writeFileSync(path.join(ASSETS, 'mark.svg'), featherSvg(16, 64) + '\n');
-
-  // La plume du README : pixel art, donc ni anticrénelage ni réduction.
-  const pixel = drawPixelFeather(6);
-  fs.writeFileSync(path.join(ASSETS, 'feather-pixel.png'), encodePng(pixel.rgba, pixel.size));
 
   for (const name of ['icon.png', 'icon.ico', 'tray-light.png', 'tray-dark.png', 'tray-active.png', 'mark.svg']) {
     const bytes = fs.statSync(path.join(ASSETS, name)).size;

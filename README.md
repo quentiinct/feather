@@ -1,4 +1,4 @@
-<img src="assets/feather-pixel.png" alt="Feather" width="128" />
+<img src="assets/feather-pixel.png" alt="Feather" width="156" />
 
 # Feather
 
