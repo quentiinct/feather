@@ -39,6 +39,16 @@ const ROOT = path.join(__dirname, '..', '..');
 /** En production les binaires sont dépaquetés à côté de l'app, pas dans l'asar. */
 const BIN_DIR = app.isPackaged ? path.join(process.resourcesPath, 'bin') : path.join(ROOT, 'resources', 'bin');
 
+/**
+ * Où atterrissent les binaires téléchargés depuis l'application.
+ *
+ * Surtout pas `BIN_DIR` : une fois installée, l'application vit sous
+ * « Program Files », que l'utilisateur courant n'a pas le droit d'écrire.
+ * L'installateur y dépose le build processeur, et le build CUDA — un
+ * gigaoctet que la plupart des machines n'utiliseront jamais — vient ici, à la
+ * demande, sans élévation de privilèges.
+ */
+const USER_BIN_DIR = path.join(app.getPath('userData'), 'bin');
 const MODELS_DIR = path.join(app.getPath('userData'), 'models');
 const BUNDLED_MODELS_DIR = path.join(ROOT, 'resources', 'models');
 const TMP_DIR = path.join(os.tmpdir(), 'feather');
@@ -136,6 +146,20 @@ function notify(message, kind = 'info') {
   // refus plutôt que de croire l'utilisateur prévenu.
   notification.on('failed', (_event, err) => logError('notification refusée :', err));
   notification.show();
+}
+
+/**
+ * Nom de la carte NVIDIA, ou null. Mesuré une seule fois par session :
+ * `nvidia-smi` est un processus à lancer, et l'interface interroge l'état du
+ * moteur à chaque ouverture d'onglet. Une carte n'apparaît pas en cours de route.
+ */
+let nvidiaCache;
+function nvidiaName() {
+  if (nvidiaCache === undefined) {
+    const { detectNvidia } = require('./install-binaries');
+    nvidiaCache = detectNvidia();
+  }
+  return nvidiaCache;
 }
 
 /** Interroge un rendu et attend sa réponse (Electron ne propose pas d'invoke inverse). */
@@ -666,7 +690,16 @@ function registerIpcHandlers() {
 
   ipcMain.handle('engine:status', async () => {
     await whisper.init();
-    return whisper.status();
+    const { assetFor } = require('./install-binaries');
+    return {
+      ...whisper.status(),
+      // Le nom de la carte, ou null. Mesuré une seule fois : `nvidia-smi`
+      // prend le temps qu'il prend, et l'interface interroge ce canal souvent.
+      nvidia: nvidiaName(),
+      // Une carte ne suffit pas : encore faut-il qu'un build CUDA existe pour
+      // ce système. Il n'y en a pas sous Linux.
+      cudaDisponible: Boolean(assetFor('cuda') !== assetFor('cpu'))
+    };
   });
 
   ipcMain.handle('engine:models', () => MODELS);
@@ -694,13 +727,32 @@ function registerIpcHandlers() {
     return true;
   });
 
-  ipcMain.handle('engine:installBinaries', async () => {
+  ipcMain.handle('engine:installBinaries', async (_event, kind) => {
     const { installBinaries } = require('./install-binaries');
-    const result = await installBinaries(BIN_DIR, (p) => {
-      toSettings('download:progress', { id: '__binaries__', percent: p.percent });
-    });
+    const result = await installBinaries(
+      USER_BIN_DIR,
+      (p) => toSettings('download:progress', { id: '__binaries__', percent: p.percent }),
+      kind
+    );
+
+    // Le moteur suit les binaires : on l'y pointe explicitement plutôt que de
+    // compter sur un ordre de recherche, pour que le choix reste visible dans
+    // config.json et réversible en effaçant une ligne.
+    config.update({ whisper: { binDir: USER_BIN_DIR } });
+    whisper.binDir = USER_BIN_DIR;
+
+    // Le serveur en vie tourne sur les anciens binaires : le laisser tourner
+    // ferait transcrire sur le processeur une machine qui vient d'installer CUDA.
+    whisper.stopServer();
     whisper._initPromise = null; // force une nouvelle détection
-    await whisper.init();
+    const state = await whisper.init();
+    if (state.ready && whisper.hasModel(config.get('whisper.model'))) {
+      whisper
+        .ensureServer(config.get('whisper'))
+        .then(() => whisper.scheduleIdleUnload(config.get('whisper')))
+        .catch((err) => logError('serveur après installation :', err.message));
+    }
+    log('moteur réinstallé :', result.buildKind, '→', USER_BIN_DIR);
     return result;
   });
 
