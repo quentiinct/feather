@@ -59,4 +59,31 @@ function isWayland() {
   );
 }
 
-module.exports = { IS_WIN, IS_MAC, IS_LINUX, exeName, libraryEnv, metaKeyLabel, isWayland };
+/**
+ * Où l'utilisateur doit aller rouvrir l'accès au micro.
+ *
+ * Envoyer quelqu'un dans « Paramètres Windows » sur un bureau Linux, c'est le
+ * faire chercher un écran qui n'existe pas — autant ne rien dire. Sous Linux il
+ * n'y a d'ailleurs pas de permission à accorder : un micro refusé y signifie
+ * presque toujours un périphérique d'entrée absent ou capté par autre chose.
+ */
+function micDeniedMessage() {
+  if (IS_WIN) {
+    return "L'accès au micro a été refusé. Autorisez-le dans Paramètres > Confidentialité et sécurité > Microphone.";
+  }
+  if (IS_MAC) {
+    return "L'accès au micro a été refusé. Autorisez-le dans Réglages Système > Confidentialité et sécurité > Microphone.";
+  }
+  return "Le micro n'est pas accessible. Vérifiez le périphérique d'entrée dans les réglages son de votre bureau.";
+}
+
+module.exports = {
+  IS_WIN,
+  IS_MAC,
+  IS_LINUX,
+  exeName,
+  libraryEnv,
+  metaKeyLabel,
+  isWayland,
+  micDeniedMessage
+};

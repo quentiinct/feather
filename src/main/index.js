@@ -11,6 +11,7 @@ const {
   ipcMain,
   nativeImage,
   nativeTheme,
+  Notification,
   shell,
   screen,
   session
@@ -24,7 +25,8 @@ const { Injector } = require('./injector');
 const { cleanup } = require('./cleanup');
 const { downloadFile, checkGgmlFile } = require('./downloader');
 const { setupUpdater } = require('./updater');
-const { IS_WIN, IS_MAC, IS_LINUX, isWayland, metaKeyLabel } = require('./platform');
+const { log, logError, logPath } = require('./logger');
+const { IS_WIN, IS_MAC, IS_LINUX, isWayland, metaKeyLabel, micDeniedMessage } = require('./platform');
 const { MODELS, modelUrl, findModel } = require('../shared/models');
 
 const IS_DEV = process.argv.includes('--dev');
@@ -36,6 +38,7 @@ const ROOT = path.join(__dirname, '..', '..');
 
 /** En production les binaires sont dépaquetés à côté de l'app, pas dans l'asar. */
 const BIN_DIR = app.isPackaged ? path.join(process.resourcesPath, 'bin') : path.join(ROOT, 'resources', 'bin');
+
 const MODELS_DIR = path.join(app.getPath('userData'), 'models');
 const BUNDLED_MODELS_DIR = path.join(ROOT, 'resources', 'models');
 const TMP_DIR = path.join(os.tmpdir(), 'feather');
@@ -78,8 +81,6 @@ let rpcSeq = 0;
  * Utilitaires
  * ------------------------------------------------------------------ */
 
-const log = (...args) => console.log('[feather]', ...args);
-
 function toSettings(channel, payload) {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.webContents.send(channel, payload);
@@ -104,8 +105,37 @@ function playCue(kind) {
   toCapture('capture:cue', { kind });
 }
 
+/**
+ * Prévient l'utilisateur, où qu'il se trouve.
+ *
+ * Feather passe l'essentiel de sa vie fenêtre fermée : un toast envoyé aux
+ * réglages n'aurait alors aucun destinataire, et l'échec resterait invisible.
+ * On bascule donc sur une notification du système.
+ *
+ * Seules les erreurs y ont droit. Faire sonner le bureau pour « la liste des
+ * micros a changé » apprendrait surtout à ignorer les notifications de Feather,
+ * y compris le jour où elles disent quelque chose d'important.
+ */
 function notify(message, kind = 'info') {
-  toSettings('toast', { message, kind });
+  const visible = settingsWindow && !settingsWindow.isDestroyed() && settingsWindow.isVisible();
+  if (visible) {
+    toSettings('toast', { message, kind });
+    return;
+  }
+  if (kind !== 'error') return;
+
+  // Personne ne regarde : le journal devient le seul témoin, et c'est là qu'on
+  // ira chercher ce qui s'est passé si la notification n'aboutit pas.
+  logError(message);
+
+  if (!Notification.isSupported()) return;
+  const notification = new Notification({ title: 'Feather', body: message });
+  // Windows n'accepte les notifications que d'un AppUserModelID enregistré par
+  // un raccourci du menu Démarrer — celui que pose l'installateur. Lancé depuis
+  // les sources, il les refuse, et `show()` échoue sans rien dire. On note le
+  // refus plutôt que de croire l'utilisateur prévenu.
+  notification.on('failed', (_event, err) => logError('notification refusée :', err));
+  notification.show();
 }
 
 /** Interroge un rendu et attend sa réponse (Electron ne propose pas d'invoke inverse). */
@@ -586,9 +616,7 @@ ipcMain.on('capture:cancelled', () => {
 
 ipcMain.on('capture:error', (_event, payload) => {
   const message =
-    payload.code === 'permission'
-      ? "L'accès au micro a été refusé. Autorisez-le dans Paramètres Windows > Confidentialité > Microphone."
-      : 'Problème de micro : ' + payload.message;
+    payload.code === 'permission' ? micDeniedMessage() : 'Problème de micro : ' + payload.message;
   notify(message, 'error');
   setState('error', { label: 'Micro indisponible' });
   setTimeout(() => setState('idle'), 2600);
@@ -793,6 +821,66 @@ function restartHotkey() {
 }
 
 /* ------------------------------------------------------------------ *
+ * Garde-fous
+ * ------------------------------------------------------------------ */
+
+/**
+ * Une exception non rattrapée arrête le processus principal par défaut. Pour
+ * une application de barre système, c'est le pire des comportements : la
+ * fenêtre était déjà fermée, l'icône disparaît sans un mot, et l'utilisateur
+ * continue d'appuyer sur son raccourci devant une application morte.
+ *
+ * On préfère rester debout et le dire. L'état peut être abîmé, mais le
+ * raccourci, le tray et les réglages restent joignables — donc réparables.
+ */
+process.on('uncaughtException', (err) => {
+  logError('exception non rattrapée :', err);
+  notify('Feather a rencontré une erreur : ' + (err?.message || err), 'error');
+});
+
+process.on('unhandledRejection', (raison) => {
+  // Rien à notifier : une promesse abandonnée n'a le plus souvent aucune
+  // conséquence visible. Mais elle explique bien des comportements étranges,
+  // et c'est exactement ce qu'on veut retrouver dans le journal.
+  logError('promesse rejetée sans gestionnaire :', raison);
+});
+
+/** Au-delà, ce n'est plus un accident : on cesse de relancer en boucle. */
+const MAX_RELANCES = 3;
+let relancesCapture = 0;
+
+app.on('render-process-gone', (_event, contents, details) => {
+  const nom =
+    contents === captureWindow?.webContents
+      ? 'capture'
+      : contents === overlayWindow?.webContents
+        ? 'overlay'
+        : contents === settingsWindow?.webContents
+          ? 'réglages'
+          : 'inconnu';
+  logError('rendu perdu (' + nom + ') :', details.reason, 'code', details.exitCode);
+
+  // La fenêtre de capture est la seule qui tient le micro : sans elle la
+  // dictée ne répond plus, alors que rien à l'écran ne l'indique.
+  if (nom !== 'capture' || quitting) return;
+  if (relancesCapture >= MAX_RELANCES) {
+    notify('Le moteur audio ne redémarre plus. Relancez Feather.', 'error');
+    return;
+  }
+  relancesCapture += 1;
+  log('relance de la fenêtre de capture (' + relancesCapture + '/' + MAX_RELANCES + ')');
+  captureWindow = null;
+  createCaptureWindow();
+});
+
+app.on('child-process-gone', (_event, details) => {
+  // À la fermeture, les processus utilitaires meurent : c'est normal, et le
+  // noter salirait la fin de chaque session pour rien.
+  if (quitting) return;
+  logError('processus enfant perdu :', details.type, details.reason);
+});
+
+/* ------------------------------------------------------------------ *
  * Démarrage
  * ------------------------------------------------------------------ */
 
@@ -807,6 +895,10 @@ if (!gotLock) {
   app.setAppUserModelId(APP_ID);
 
   app.whenReady().then(async () => {
+    // Première ligne de chaque session : elle date le journal et dit où il se
+    // trouve, ce qui évite d'avoir à l'expliquer dans un rapport de bug.
+    log('Feather', app.getVersion(), '—', process.platform, '— journal :', logPath());
+
     config = new ConfigStore(app.getPath('userData'));
     stats = new StatsStore(app.getPath('userData'));
 
