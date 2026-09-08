@@ -510,7 +510,51 @@ async function refreshEngine() {
       ? 'Votre build supporte CUDA : laissez activé.'
       : 'Les binaires installés ne sont pas compilés avec CUDA — cette option restera sans effet.';
 
+  renderCuda();
   renderModels();
+}
+
+/** Vrai quand la machine gagnerait à installer le moteur CUDA. */
+function cudaProposable() {
+  return Boolean(engine?.nvidia && engine?.cudaDisponible && !engine?.gpuCapable);
+}
+
+function renderCuda() {
+  const row = $('#row-cuda');
+  row.hidden = !cudaProposable();
+  if (row.hidden) return;
+  $('#cuda-help').textContent =
+    engine.nvidia +
+    ' détectée. Le moteur CUDA transcrit environ dix fois plus vite ; environ 1,1 Go à télécharger.';
+}
+
+$('#cuda-install').addEventListener('click', async () => {
+  const btn = $('#cuda-install');
+  await installerCuda(btn, $('#cuda-progress'));
+});
+
+/**
+ * Télécharge et installe le moteur CUDA. Partagé par l'onglet Transcription et
+ * par le guide : c'est le même geste, il n'a pas à être écrit deux fois.
+ */
+async function installerCuda(btn, barre) {
+  const libelle = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Installation…';
+  barre.hidden = false;
+  barre.querySelector('span').style.width = '0';
+  try {
+    await api.invoke('engine:installBinaries', 'cuda');
+    await refreshEngine();
+    toast('Moteur CUDA installé.', 'success');
+    return true;
+  } catch (err) {
+    toast("Échec de l'installation : " + err.message, 'error');
+    btn.disabled = false;
+    btn.textContent = libelle;
+    barre.hidden = true;
+    return false;
+  }
 }
 
 function renderModels() {
@@ -580,10 +624,24 @@ $('#model-list').addEventListener('click', async (event) => {
   }
 });
 
+/**
+ * Un même téléchargement peut avoir plusieurs jauges à l'écran — celle de la
+ * liste des modèles et celle du guide, par exemple. On les alimente toutes
+ * plutôt que de faire dépendre l'affichage de l'endroit d'où le clic est parti.
+ */
 api.on('download:progress', (payload) => {
-  const row = document.querySelector('.model-row[data-model="' + payload.id + '"]');
-  const bar = row ? row.querySelector('.progress > span') : null;
-  if (bar) bar.style.width = payload.percent.toFixed(1) + '%';
+  const largeur = payload.percent.toFixed(1) + '%';
+  const cibles =
+    payload.id === '__binaries__'
+      ? ['#cuda-progress', '#ob-gpu-progress']
+      : [
+          '.model-row[data-model="' + payload.id + '"] .progress',
+          '.ob-model[data-model="' + payload.id + '"] .progress'
+        ];
+  for (const sel of cibles) {
+    const bar = document.querySelector(sel + ' > span');
+    if (bar) bar.style.width = largeur;
+  }
 });
 
 /* ------------------------------------------------------------------ *
@@ -913,6 +971,180 @@ api.on('stats:changed', () => {
 
 api.on('toast', (payload) => toast(payload.message, payload.kind));
 
+/* ------------------------------------------------------------------ *
+ * Guide de premier lancement
+ * ------------------------------------------------------------------ */
+
+/**
+ * Quatre ou cinq étapes, selon la machine. L'ordre compte : le modèle vient en
+ * deuxième parce que c'est la seule chose sans laquelle l'application ne peut
+ * rien faire, et le raccourci juste avant l'essai, pour qu'on l'ait encore en
+ * tête au moment de s'en servir.
+ */
+const OB_TOUTES = ['bienvenue', 'modele', 'gpu', 'raccourci', 'essai'];
+
+let obEtapes = [];
+let obIndex = 0;
+let obModele = null;
+
+/** L'étape GPU ne s'affiche que si elle apporte quelque chose à cette machine. */
+function obEtapesUtiles() {
+  return OB_TOUTES.filter((nom) => nom !== 'gpu' || cudaProposable());
+}
+
+function obModeleInstalle(id) {
+  return (engine?.models || []).some((m) => m.id === id);
+}
+
+function obRenderModeles() {
+  const installes = new Set((engine?.models || []).map((m) => m.id));
+  $('#ob-models').innerHTML = (appInfo?.models || [])
+    .map((m) => {
+      const dedans = installes.has(m.id);
+      return (
+        '<button class="ob-model' +
+        (m.id === obModele ? ' is-selected' : '') +
+        '" data-model="' +
+        m.id +
+        '"><span><span class="ob-model-name">' +
+        m.label +
+        (m.recommended ? '<span class="badge">recommandé</span>' : '') +
+        (dedans ? '<span class="badge installed">installé</span>' : '') +
+        '</span><span class="ob-model-meta">' +
+        (dedans ? 'déjà sur le disque' : '≈ ' + m.sizeMB + ' Mo à télécharger') +
+        ' · ' +
+        m.note +
+        '</span><span class="progress" hidden><span style="width:0"></span></span></span></button>'
+      );
+    })
+    .join('');
+}
+
+$('#ob-models').addEventListener('click', (event) => {
+  const carte = event.target.closest('.ob-model');
+  if (!carte) return;
+  obModele = carte.dataset.model;
+  obRenderModeles();
+  obRenderPied();
+});
+
+function obRenderRaccourci() {
+  const touches = config.hotkey.modifiers.map((m) => MOD_LABELS[m] || m);
+  $('#ob-keys').innerHTML = touches
+    .map((t) => '<span class="ob-key">' + t + '</span>')
+    .join('<span class="ob-plus">+</span>');
+}
+
+/** Le libellé du bouton principal dit ce qui va se passer, pas « Suivant ». */
+function obRenderPied() {
+  const etape = obEtapes[obIndex];
+  const suivant = $('#ob-next');
+  $('#ob-prev').hidden = obIndex === 0;
+  suivant.disabled = false;
+
+  if (etape === 'bienvenue') suivant.textContent = 'Commencer';
+  else if (etape === 'modele') {
+    if (!obModele) {
+      suivant.textContent = 'Choisissez un modèle';
+      suivant.disabled = true;
+    } else if (obModeleInstalle(obModele)) suivant.textContent = 'Continuer';
+    else {
+      const m = (appInfo?.models || []).find((x) => x.id === obModele);
+      suivant.textContent = 'Télécharger (' + (m ? m.sizeMB + ' Mo' : '') + ')';
+    }
+  } else if (etape === 'gpu') suivant.textContent = engine?.gpuCapable ? 'Continuer' : 'Plus tard';
+  else if (etape === 'essai') suivant.textContent = 'Terminer';
+  else suivant.textContent = 'Suivant';
+}
+
+function obAfficheEtape() {
+  const etape = obEtapes[obIndex];
+  $$('.ob-step').forEach((s) => {
+    s.hidden = s.dataset.step !== etape;
+  });
+  $('#ob-steps').innerHTML = obEtapes
+    .map((_, i) => '<li class="' + (i <= obIndex ? 'is-done' : '') + '"></li>')
+    .join('');
+
+  if (etape === 'modele') obRenderModeles();
+  if (etape === 'raccourci') obRenderRaccourci();
+  if (etape === 'gpu') $('#ob-gpu-lead').textContent = engine.nvidia + ' a été détectée.';
+  obRenderPied();
+}
+
+async function obTermine() {
+  $('#onboarding').hidden = true;
+  await patch({ ui: { onboarded: true } });
+}
+
+$('#ob-prev').addEventListener('click', () => {
+  if (obIndex > 0) obIndex -= 1;
+  obAfficheEtape();
+});
+
+$('#ob-skip').addEventListener('click', async () => {
+  const sansModele = !(engine?.models || []).length;
+  await obTermine();
+  // Sans modèle, le raccourci ne produira rien : mieux vaut le dire tout de
+  // suite que de laisser découvrir une dictée qui n'écrit jamais.
+  if (sansModele) toast('Pensez à télécharger un modèle dans Transcription.', 'error');
+});
+
+$('#ob-gpu-install').addEventListener('click', async () => {
+  const ok = await installerCuda($('#ob-gpu-install'), $('#ob-gpu-progress'));
+  if (ok) {
+    $('#ob-gpu-install').textContent = 'Installé';
+    obRenderPied();
+  }
+});
+
+$('#ob-next').addEventListener('click', async () => {
+  const etape = obEtapes[obIndex];
+
+  // Le téléchargement du modèle est la seule étape qui agit avant d'avancer.
+  if (etape === 'modele' && obModele && !obModeleInstalle(obModele)) {
+    const btn = $('#ob-next');
+    const carte = document.querySelector('.ob-model[data-model="' + obModele + '"]');
+    const barre = carte?.querySelector('.progress');
+    btn.disabled = true;
+    btn.textContent = 'Téléchargement…';
+    if (barre) barre.hidden = false;
+    try {
+      await api.invoke('engine:downloadModel', obModele);
+      await patch({ whisper: { model: obModele } });
+      await refreshEngine();
+      obRenderModeles();
+    } catch (err) {
+      toast('Échec du téléchargement : ' + err.message, 'error');
+      obRenderPied();
+      return;
+    }
+  }
+
+  if (etape === 'modele' && obModele && obModeleInstalle(obModele)) {
+    await patch({ whisper: { model: obModele } });
+  }
+
+  if (obIndex >= obEtapes.length - 1) {
+    await obTermine();
+    return;
+  }
+  obIndex += 1;
+  obAfficheEtape();
+});
+
+function obDemarre() {
+  obEtapes = obEtapesUtiles();
+  obIndex = 0;
+  // Pré-sélection : le modèle déjà actif s'il est installé, sinon le recommandé.
+  const actif = config.whisper.model;
+  obModele = obModeleInstalle(actif)
+    ? actif
+    : (appInfo?.models || []).find((m) => m.recommended)?.id || null;
+  $('#onboarding').hidden = false;
+  obAfficheEtape();
+}
+
 async function boot() {
   config = await api.invoke('config:get');
   appInfo = await api.invoke('app:info');
@@ -933,6 +1165,10 @@ async function boot() {
   renderAll();
   showPanel(panelFromHash());
   await refreshEngine();
+
+  // Après refreshEngine : le guide a besoin de savoir quels modèles sont déjà
+  // là et si une carte NVIDIA est présente pour composer ses étapes.
+  if (!config.ui.onboarded) obDemarre();
 }
 
 boot().catch((err) => {

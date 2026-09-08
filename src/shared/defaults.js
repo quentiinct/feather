@@ -116,7 +116,11 @@ const DEFAULT_CONFIG = {
     startMinimized: false,
     launchAtLogin: false,
     soundFeedback: true,
-    language: 'fr'
+    language: 'fr',
+    // Passe à true à la fin — ou au saut — du guide de premier lancement.
+    // Sans modèle installé, l'application ne peut rien faire : le guide est la
+    // seule chose qui le dise à quelqu'un qui découvre.
+    onboarded: false
   },
 
   history: {

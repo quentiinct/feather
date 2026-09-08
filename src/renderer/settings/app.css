@@ -1113,6 +1113,201 @@ input[type='range'] {
 }
 
 
+/* ---------- Guide de premier lancement ---------- */
+
+/* Il commence sous la barre de titre, jamais par-dessus : sinon on ne pourrait
+   ni déplacer ni fermer la fenêtre tant que le guide est ouvert. */
+.onboarding {
+  position: fixed;
+  inset: 38px 0 0 0;
+  z-index: 40;
+  background: var(--surface-sunken);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.onboarding-card {
+  width: 100%;
+  max-width: 580px;
+  background: var(--surface);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 28px 32px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  /* Hauteur fixe, et c'est le contenu qui defile. Sans cela le pied
+     remonterait et redescendrait d'une etape a l'autre, et le bouton
+     principal se deroberait sous le curseur au moment du clic. */
+  height: 560px;
+}
+
+.onboarding-steps {
+  display: flex;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.onboarding-steps li {
+  width: 26px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border-strong);
+  transition: background 220ms ease;
+}
+
+.onboarding-steps li.is-done {
+  background: var(--accent);
+}
+
+.ob-step {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.ob-step h1 {
+  font-family: var(--font-title);
+  font-size: 22px;
+  line-height: 1.25;
+  margin: 0 0 10px;
+}
+
+.ob-lead {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink);
+  margin: 0 0 12px;
+}
+
+.ob-note {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ink-secondary);
+  margin: 0;
+}
+
+.ob-list {
+  margin: 0 0 14px;
+  padding-left: 20px;
+  font-size: 14.5px;
+  line-height: 1.95;
+}
+
+/* Choix du modèle : des cartes cliquables plutôt qu'une liste avec boutons.
+   À cette étape il n'y a qu'une décision à prendre, autant que la cible soit
+   la ligne entière. */
+.ob-models {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.ob-model {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    box-shadow 140ms ease,
+    background 140ms ease;
+}
+
+.ob-model:hover {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+.ob-model.is-selected {
+  box-shadow: inset 0 0 0 2px var(--accent-line);
+}
+
+.ob-model-name {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.ob-model-meta {
+  display: block;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}
+
+.ob-model .progress {
+  margin-top: 8px;
+}
+
+.ob-keys {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.ob-key {
+  padding: 9px 18px;
+  border-radius: 10px;
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.ob-plus {
+  color: var(--ink-muted);
+}
+
+.ob-gpu {
+  margin-bottom: 4px;
+}
+
+.ob-gpu .progress {
+  margin-top: 10px;
+}
+
+.onboarding-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.ob-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-muted);
+}
+
+.btn.ghost:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;

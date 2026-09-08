@@ -265,6 +265,19 @@
               </div>
             </div>
 
+            <!-- Visible seulement quand une carte NVIDIA est là et que le moteur
+                 installé est celui du processeur. -->
+            <div class="row" id="row-cuda" hidden>
+              <div class="row-text">
+                <span class="row-title">Moteur CUDA</span>
+                <small id="cuda-help"></small>
+                <div class="progress" id="cuda-progress" hidden><span style="width: 0"></span></div>
+              </div>
+              <div class="row-control">
+                <button class="btn small" id="cuda-install">Installer</button>
+              </div>
+            </div>
+
             <div class="row stacked">
               <div class="row-text">
                 <label for="initial-prompt">Amorce de contexte</label>
@@ -489,6 +502,91 @@
     </div>
 
     <div class="toasts" id="toasts" aria-live="polite"></div>
+
+    <!--
+      Guide de premier lancement. Il recouvre la fenêtre au lieu d'être un
+      panneau de plus : sans modèle, l'application ne peut rien faire, et
+      laisser quelqu'un explorer des réglages inopérants serait une perte de
+      temps. L'étape GPU ne s'affiche que si une carte NVIDIA est détectée.
+    -->
+    <div class="onboarding" id="onboarding" hidden>
+      <div class="onboarding-card" role="dialog" aria-modal="true" aria-labelledby="ob-title">
+        <ol class="onboarding-steps" id="ob-steps" aria-hidden="true"></ol>
+
+        <section class="ob-step" data-step="bienvenue">
+          <h1 id="ob-title">Bienvenue dans Feather</h1>
+          <p class="ob-lead">
+            Vous maintenez deux touches, vous parlez, et le texte s'écrit dans la fenêtre
+            où vous étiez — éditeur, navigateur, conversation, champ de recherche.
+          </p>
+          <p class="ob-note">
+            Tout est calculé sur votre machine. Aucun compte, aucune clé d'API, aucun
+            octet d'audio ne quitte l'ordinateur. Deux minutes de réglages, et c'est prêt.
+          </p>
+        </section>
+
+        <section class="ob-step" data-step="modele" hidden>
+          <h1>Choisissez un modèle</h1>
+          <p class="ob-lead">
+            C'est lui qui transcrit. Plus il est gros, meilleur il est — et plus il
+            demande de mémoire.
+          </p>
+          <div class="ob-models" id="ob-models"></div>
+          <p class="ob-note" id="ob-model-note">
+            Le téléchargement peut prendre quelques minutes. Vous pourrez en changer plus
+            tard dans Transcription.
+          </p>
+        </section>
+
+        <section class="ob-step" data-step="gpu" hidden>
+          <h1>Votre carte graphique peut aider</h1>
+          <p class="ob-lead" id="ob-gpu-lead">Une carte NVIDIA a été détectée.</p>
+          <p class="ob-note">
+            Feather est livré avec le moteur processeur, qui fonctionne partout. Le moteur
+            CUDA transcrit environ dix fois plus vite, mais pèse un peu plus d'un
+            gigaoctet à télécharger. Vous pouvez le faire maintenant ou plus tard, depuis
+            Transcription.
+          </p>
+          <div class="ob-gpu">
+            <button class="btn primary" id="ob-gpu-install">Installer le moteur CUDA</button>
+            <div class="progress" id="ob-gpu-progress" hidden><span style="width: 0"></span></div>
+          </div>
+        </section>
+
+        <section class="ob-step" data-step="raccourci" hidden>
+          <h1>Votre raccourci</h1>
+          <p class="ob-lead">Appuyez sur ces deux touches, n'importe où, pour dicter.</p>
+          <div class="ob-keys" id="ob-keys"></div>
+          <p class="ob-note">
+            Un appui bref démarre puis arrête. Un appui maintenu enregistre tant que vous
+            tenez les touches. Si une troisième touche arrive dans la foulée, Feather
+            s'efface : vos raccourcis habituels passent intacts. Modifiable dans Raccourci.
+          </p>
+        </section>
+
+        <section class="ob-step" data-step="essai" hidden>
+          <h1>Essayez</h1>
+          <ol class="ob-list">
+            <li>Ouvrez un champ de texte — un éditeur, une barre de recherche.</li>
+            <li>Appuyez sur votre raccourci et parlez.</li>
+            <li>Relâchez, ou appuyez à nouveau. Le texte s'écrit tout seul.</li>
+          </ol>
+          <p class="ob-note">
+            <strong>Échap</strong> pendant l'enregistrement jette la dictée. Fermer cette
+            fenêtre ne quitte pas Feather : il continue dans la zone de notification, près
+            de l'horloge, et c'est de là qu'on le quitte.
+          </p>
+        </section>
+
+        <footer class="onboarding-foot">
+          <button class="btn ghost" id="ob-skip">Passer</button>
+          <div class="ob-actions">
+            <button class="btn" id="ob-prev" hidden>Retour</button>
+            <button class="btn primary" id="ob-next">Commencer</button>
+          </div>
+        </footer>
+      </div>
+    </div>
 
     <script src="./app.js"></script>
   </body>
