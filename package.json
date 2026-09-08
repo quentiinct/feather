@@ -29,7 +29,7 @@
     "electron-builder": "^26.15.3"
   },
   "build": {
-    "appId": "com.quentincourtade.feather",
+    "appId": "com.feather.app",
     "productName": "Feather",
     "directories": {
       "output": "dist",

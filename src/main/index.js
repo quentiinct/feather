@@ -28,6 +28,10 @@ const { IS_WIN, IS_MAC, IS_LINUX, isWayland, metaKeyLabel } = require('./platfor
 const { MODELS, modelUrl, findModel } = require('../shared/models');
 
 const IS_DEV = process.argv.includes('--dev');
+
+/** Identifiant applicatif, le même que celui de l'installateur : c'est lui qui
+ *  regroupe la fenêtre et les notifications sous une seule entrée système. */
+const APP_ID = require('../../package.json').build?.appId || 'com.feather.app';
 const ROOT = path.join(__dirname, '..', '..');
 
 /** En production les binaires sont dépaquetés à côté de l'app, pas dans l'asar. */
@@ -800,7 +804,7 @@ if (!gotLock) {
 
   // Sans identité déclarée, Windows regroupe la fenêtre sous « Electron » dans
   // la barre des tâches et l'épinglage ne retient pas la bonne application.
-  app.setAppUserModelId('com.quentincourtade.feather');
+  app.setAppUserModelId(APP_ID);
 
   app.whenReady().then(async () => {
     config = new ConfigStore(app.getPath('userData'));
