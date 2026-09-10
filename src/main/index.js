@@ -32,8 +32,14 @@ const { MODELS, modelUrl, findModel } = require('../shared/models');
 const IS_DEV = process.argv.includes('--dev');
 
 /** Identifiant applicatif, le même que celui de l'installateur : c'est lui qui
- *  regroupe la fenêtre et les notifications sous une seule entrée système. */
-const APP_ID = require('../../package.json').build?.appId || 'com.feather.app';
+ *  regroupe la fenêtre et les notifications sous une seule entrée système.
+ *
+ *  Hors installation, l'exécutable est celui d'Electron : lui prêter l'identité
+ *  de production fait inscrire son icône par défaut dans le menu Démarrer, d'où
+ *  Windows tire ensuite l'icône de la barre des tâches — y compris pour
+ *  l'application installée. Le développement garde donc son propre identifiant. */
+const BASE_APP_ID = require('../../package.json').build?.appId || 'com.feather.app';
+const APP_ID = app.isPackaged ? BASE_APP_ID : `${BASE_APP_ID}.dev`;
 const ROOT = path.join(__dirname, '..', '..');
 
 /** En production les binaires sont dépaquetés à côté de l'app, pas dans l'asar. */
