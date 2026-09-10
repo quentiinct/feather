@@ -69,18 +69,30 @@ function setupUpdater({ log, onState }) {
     log('mise à jour ' + info.version + ' prête');
     toast('Feather ' + info.version + ' est prête', 'Elle sera installée à la fermeture de Feather.');
   });
+  /**
+   * electron-updater met la réponse HTTP entière dans le message de l'erreur :
+   * en-têtes compris, donc les `Set-Cookie` de GitHub. Recopier ça dans un
+   * journal, c'est déposer des cookies de session sur le disque et rendre le
+   * fichier inutilisable — plus de cent lignes pour dire « 404 ».
+   *
+   * La première ligne porte l'information ; le reste est du bruit.
+   */
+  const bref = (err) => String(err?.message || err).split('\n')[0].trim().slice(0, 200);
+
   updater.on('error', (err) => {
     // Une release absente ou un dépôt privé donnent une 404 : ce n'est pas une
     // panne, juste rien à installer. On le note sans importuner l'utilisateur.
-    publish({ status: 'échec', error: err?.message || String(err) });
-    log('mises à jour :', err?.message || err);
+    publish({ status: 'échec', error: bref(err) });
+    log('mises à jour :', bref(err));
   });
 
   const check = async () => {
     try {
       await updater.checkForUpdates();
     } catch (err) {
-      publish({ status: 'échec', error: err?.message || String(err) });
+      // Même écueil que plus haut : `checkForUpdates` rejette avec la réponse
+      // HTTP entière, et cette chaîne finit affichée dans les réglages.
+      publish({ status: 'échec', error: bref(err) });
     }
     return state;
   };
