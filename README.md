@@ -13,6 +13,28 @@ Une alternative hors ligne à [Wispr Flow](https://wisprflow.ai). Windows et Lin
 
 ## Installation
 
+### Windows — l'installateur
+
+Téléchargez `Feather Setup <version>.exe` depuis la
+[page des versions](https://github.com/quentiinct/feather/releases) et lancez-le. Aucun
+droit administrateur n'est nécessaire : l'installation se fait pour votre compte, et pose
+un raccourci dans le menu Démarrer et sur le bureau.
+
+Au premier lancement, un guide vous fait choisir un modèle de transcription et vous
+montre votre raccourci. Comptez quelques minutes pour le téléchargement du modèle.
+
+L'installateur embarque le moteur processeur, qui fonctionne partout. Si vous avez une
+carte NVIDIA, Feather vous proposera d'installer le moteur CUDA — environ dix fois plus
+rapide, 1,1 Go à télécharger, et rien à faire d'autre que cliquer.
+
+Windows affichera « Éditeur inconnu » : l'exécutable n'est pas signé
+cryptographiquement. Passez par **Informations complémentaires → Exécuter quand même**.
+
+Pour désinstaller : Paramètres → Applications → Feather, ou `Uninstall Feather.exe` dans
+le dossier d'installation.
+
+### Linux, ou depuis les sources
+
 ```bash
 git clone https://github.com/quentiinct/feather.git
 cd feather
@@ -34,6 +56,15 @@ sudo apt install libgomp1 xdotool
 `libgomp1` est la bibliothèque OpenMP à laquelle le moteur se lie sans l'embarquer — sans
 elle il démarre et reste muet. `xdotool` est l'outil qui écrit dans les autres fenêtres.
 Le paquet `.deb` de Feather installe les deux automatiquement.
+
+Sur une installation minimale — WSL, conteneur, serveur — il manque en plus la pile
+graphique dont Electron a besoin, et `libXt` pour le raccourci global :
+
+```bash
+sudo apt install libnspr4 libnss3 libgtk-3-0 libgbm1 libasound2 libxt6
+```
+
+Sur un bureau Linux ordinaire, tout cela est déjà là.
 
 Options de `npm run setup` : `--cpu` force le build processeur (8 Mo au lieu de 640 Mo),
 `--cuda` force le build CUDA, `--model <id>` choisit un autre modèle, `--model-only` ne
