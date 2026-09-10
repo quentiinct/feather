@@ -11,11 +11,19 @@
     <link rel="stylesheet" href="./app.css" />
   </head>
   <body>
+    <!--
+      La zone de déplacement est un élément à part, et non le bandeau entier.
+      Imbriquer un « no-drag » dans un « drag » est fragile sous Linux : les
+      régions ne sont pas recalculées après un agrandissement, et les boutons
+      cessent alors de recevoir les clics. Ici, ils ne sont dans aucune région.
+    -->
     <header class="titlebar">
+      <div class="titlebar-drag">
       <div class="brand">
         <!-- Tracé produit par scripts/make-icons.js : même géométrie que les icônes -->
         <svg class="brand-mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" aria-hidden="true"><path d="M2.61 14.87L12.04 2.2" stroke-width="1.14"/><path d="M5.03 11.11L7.36 11.28" stroke-width="1.38"/><path d="M5.03 11.11L4.31 8.89" stroke-width="1.38"/><path d="M6.6 9.11L9.84 9.35" stroke-width="1.38"/><path d="M6.6 9.11L5.61 6.02" stroke-width="1.38"/><path d="M8.18 7.11L10.83 7.3" stroke-width="1.38"/><path d="M8.18 7.11L7.36 4.57" stroke-width="1.38"/><path d="M9.75 5.11L12.86 5.33" stroke-width="1.38"/><path d="M9.75 5.11L8.79 2.14" stroke-width="1.38"/><path d="M11.32 3.11L13.27 3.25" stroke-width="1.38"/><path d="M11.32 3.11L10.72 1.25" stroke-width="1.38"/></svg>
         Feather
+      </div>
       </div>
       <div class="window-buttons">
         <button id="btn-minimize" title="Réduire" aria-label="Réduire">

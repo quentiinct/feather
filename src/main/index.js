@@ -233,6 +233,32 @@ function setLinuxAutostart(enabled) {
   }
 }
 
+/** Dimensions d'avant l'agrandissement, pour pouvoir y revenir de force. */
+let boundsAvantAgrandissement = null;
+
+/**
+ * Rend la fenêtre à sa taille précédente.
+ *
+ * `unmaximize()` suffit sur un gestionnaire de fenêtres qui joue le jeu. Certains
+ * l'ignorent sur une fenêtre sans cadre, et l'utilisateur reste alors coincé en
+ * plein écran. On attend donc l'événement, et s'il ne vient pas, on repose les
+ * dimensions à la main.
+ */
+function restoreSettingsWindow() {
+  if (!settingsWindow || settingsWindow.isDestroyed()) return;
+  settingsWindow.unmaximize();
+
+  const secours = setTimeout(() => {
+    if (!settingsWindow || settingsWindow.isDestroyed()) return;
+    if (!settingsWindow.isMaximized() || !boundsAvantAgrandissement) return;
+    log('agrandissement : unmaximize ignoré, dimensions reposées à la main');
+    settingsWindow.setBounds(boundsAvantAgrandissement);
+    toSettings('window:state', false);
+  }, 400);
+
+  settingsWindow.once('unmaximize', () => clearTimeout(secours));
+}
+
 let cachedAppIcon = null;
 
 /** Icône de fenêtre, donc de barre des tâches. Chargée une fois. */
@@ -817,8 +843,13 @@ function registerIpcHandlers() {
   ipcMain.handle('window:close', () => settingsWindow?.hide());
   ipcMain.handle('window:maximize', () => {
     if (!settingsWindow) return false;
-    if (settingsWindow.isMaximized()) settingsWindow.unmaximize();
-    else settingsWindow.maximize();
+    if (settingsWindow.isMaximized()) restoreSettingsWindow();
+    else {
+      // Mémorisées avant, pour pouvoir les reposer si le gestionnaire de
+      // fenêtres ne rend pas la main de lui-même.
+      boundsAvantAgrandissement = settingsWindow.getBounds();
+      settingsWindow.maximize();
+    }
     return settingsWindow.isMaximized();
   });
   ipcMain.handle('window:quit', () => {

@@ -130,10 +130,21 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-left: 14px;
   background: transparent;
-  -webkit-app-region: drag;
   user-select: none;
+}
+
+/* Seule cette zone deplace la fenetre. Le bandeau entier ne peut pas l etre :
+   un « no-drag » imbrique dans un « drag » cesse de recevoir les clics sous
+   Linux des que la fenetre est agrandie, les regions n etant pas recalculees. */
+.titlebar-drag {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  padding-left: 14px;
+  min-width: 0;
+  -webkit-app-region: drag;
 }
 
 .titlebar .brand {
