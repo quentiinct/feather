@@ -53,10 +53,13 @@ function metaKeyLabel() {
  * raccourci qui ne répond jamais.
  */
 function isWayland() {
-  return (
-    IS_LINUX &&
-    (process.env.XDG_SESSION_TYPE === 'wayland' || Boolean(process.env.WAYLAND_DISPLAY))
-  );
+  if (!IS_LINUX) return false;
+  if (process.env.XDG_SESSION_TYPE === 'wayland') return true;
+  // `WAYLAND_DISPLAY` seul ne suffit pas : WSLg le pose alors que les
+  // applications tournent sous XWayland, où le raccourci global et xdotool
+  // fonctionnent parfaitement. Sans serveur X, en revanche, il n'y a pas de
+  // repli possible et l'avertissement est mérité.
+  return Boolean(process.env.WAYLAND_DISPLAY) && !process.env.DISPLAY;
 }
 
 /**
